@@ -68,7 +68,8 @@ async def register(
     db.add(practitioner)
     await db.flush()  # get id
 
-    # TODO: background_tasks.add_task(send_welcome_email, practitioner)
+    from app.core.email import send_welcome_email
+    background_tasks.add_task(send_welcome_email, practitioner.name, practitioner.email)
 
     access  = create_access_token(practitioner.id)
     refresh = create_refresh_token(practitioner.id)

@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     # ── App ──────────────────────────────────────────────────────────────────
     APP_NAME: str = "Dhanvantari Ayurveda Care Platform"
     APP_VERSION: str = "1.0.0"
-    DEBUG: bool = False
-    FRONTEND_URL: str = "http://localhost:3000"
+    DEBUG: bool = True
+    FRONTEND_URL: str = "http://localhost:3747"
 
     # ── Database ─────────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/dhanvantari"

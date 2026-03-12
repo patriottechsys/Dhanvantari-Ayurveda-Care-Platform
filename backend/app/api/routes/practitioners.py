@@ -21,6 +21,10 @@ class ProfileUpdate(BaseModel):
     practice_name: str | None = None
     designation: str | None = None
     bio: str | None = None
+    tagline: str | None = None
+    location: str | None = None
+    telehealth_url: str | None = None
+    website: str | None = None
 
 
 def _practitioner_dict(p: Practitioner) -> dict:
@@ -35,6 +39,10 @@ def _practitioner_dict(p: Practitioner) -> dict:
         "practice_logo_url": p.practice_logo_url,
         "designation": p.designation,
         "bio": p.bio,
+        "tagline": p.tagline,
+        "location": p.location,
+        "telehealth_url": p.telehealth_url,
+        "website": p.website,
         "subscription_tier": p.subscription_tier,
         "subscription_active": p.subscription_active,
         "in_trial": in_trial,

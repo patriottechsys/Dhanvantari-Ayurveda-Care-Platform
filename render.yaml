@@ -1,0 +1,61 @@
+# Render Blueprint — Dhanvantari Ayurveda Care Platform
+# https://render.com/docs/blueprint-spec
+
+databases:
+  - name: dhanvantari-db
+    plan: free
+    databaseName: dhanvantari
+    user: dhanvantari
+
+services:
+  # ── Backend API ──────────────────────────────────────────────────────────
+  - type: web
+    name: dhanvantari-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dhanvantari-db
+          property: connectionString
+      - key: FRONTEND_URL
+        value: https://dhanvantari.onrender.com
+      - key: DEBUG
+        value: "false"
+      - key: SECRET_KEY
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_SEED
+        sync: false
+      - key: STRIPE_PRICE_PRACTICE
+        sync: false
+      - key: STRIPE_PRICE_CLINIC
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    healthCheckPath: /api/health
+
+  # ── Frontend (Next.js) ──────────────────────────────────────────────────
+  - type: web
+    name: dhanvantari
+    runtime: node
+    plan: free
+    rootDir: ./frontend
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: dhanvantari-api
+          property: host
+          # Render fills in the full URL automatically
+      - key: PORT
+        value: "3000"
