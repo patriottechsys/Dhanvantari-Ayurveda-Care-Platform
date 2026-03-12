@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+*.egg-info/
+.env
+
+# Node
+node_modules/
+.next/
+out/
+.env.local
+
+# DB / uploads
+*.db
+*.sqlite
+uploads/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Reference (large copy of old project)
+_reference/
