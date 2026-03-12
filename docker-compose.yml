@@ -30,7 +30,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "8747:8747"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dhanvantari
       - DEBUG=true
@@ -41,7 +41,7 @@ services:
         condition: service_healthy
     volumes:
       - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8747 --reload
 
 volumes:
   pgdata:
