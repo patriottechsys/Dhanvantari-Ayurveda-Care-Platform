@@ -102,13 +102,23 @@ export default function AIAssistantPage() {
 
         for (const line of lines) {
           if (line.startsWith("data: ")) {
-            const data = line.slice(6);
-            if (data === "[DONE]") continue;
-            setMessages((prev) =>
-              prev.map((m) =>
-                m.id === assistantMsg.id ? { ...m, content: m.content + data } : m
-              )
-            );
+            const raw = line.slice(6);
+            if (raw === "[DONE]") continue;
+            try {
+              const text = JSON.parse(raw);
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMsg.id ? { ...m, content: m.content + text } : m
+                )
+              );
+            } catch {
+              // Fallback for non-JSON chunks
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === assistantMsg.id ? { ...m, content: m.content + raw } : m
+                )
+              );
+            }
           }
         }
       }

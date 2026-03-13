@@ -76,6 +76,8 @@ async def chat(
     system_prompt = "\n".join(context_parts)
     client = ac.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
 
+    import json as _json
+
     async def stream_response():
         with client.messages.stream(
             model=settings.AI_MODEL,
@@ -84,7 +86,7 @@ async def chat(
             messages=[{"role": "user", "content": body.message}],
         ) as stream:
             for text in stream.text_stream:
-                yield f"data: {text}\n\n"
+                yield f"data: {_json.dumps(text)}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(stream_response(), media_type="text/event-stream")
