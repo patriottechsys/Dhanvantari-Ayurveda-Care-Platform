@@ -203,31 +203,31 @@ export default function AIAssistantPage() {
           messages.map((msg) => (
             <div key={msg.id} className={`flex gap-3 ${msg.role === "user" ? "justify-end" : ""}`}>
               {msg.role === "assistant" && (
-                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-0.5">
+                <div className="w-7 h-7 rounded-lg bg-primary/10 flex items-center justify-center shrink-0 mt-1">
                   <Bot className="size-3.5 text-primary" />
                 </div>
               )}
-              <div
-                className={`max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed ${
-                  msg.role === "user"
-                    ? "bg-primary text-primary-foreground whitespace-pre-wrap"
-                    : "bg-muted"
-                }`}
-              >
-                {msg.content ? (
-                  msg.role === "assistant" ? (
-                    <div className="prose prose-sm prose-neutral max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-1.5 [&_ul]:my-1.5 [&_ol]:my-1.5 [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-3 [&_h1]:mb-1.5 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-2.5 [&_h2]:mb-1 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-2 [&_h3]:mb-1 [&_table]:text-xs [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_code]:text-xs [&_code]:bg-black/5 [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_pre]:bg-black/5 [&_pre]:p-3 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_blockquote]:border-l-2 [&_blockquote]:border-primary/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_hr]:my-3">
+              {msg.role === "user" ? (
+                <div className="max-w-[75%] rounded-xl px-4 py-2.5 text-sm leading-relaxed bg-primary text-primary-foreground whitespace-pre-wrap">
+                  {msg.content || (
+                    <span className="flex items-center gap-2 text-primary-foreground/70">
+                      <Loader2 className="size-3.5 animate-spin" /> Sending...
+                    </span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex-1 min-w-0 border border-border/50 rounded-xl px-5 py-4 text-sm leading-relaxed bg-background">
+                  {msg.content ? (
+                    <div className="prose prose-sm prose-neutral dark:prose-invert max-w-none [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_p]:my-2 [&_p]:leading-relaxed [&_ul]:my-2 [&_ul]:pl-4 [&_ol]:my-2 [&_ol]:pl-4 [&_li]:my-0.5 [&_h1]:text-base [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-sm [&_h2]:font-bold [&_h2]:mt-3.5 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mt-3 [&_h3]:mb-1 [&_table]:text-xs [&_th]:px-2 [&_th]:py-1 [&_td]:px-2 [&_td]:py-1 [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:rounded-md [&_pre]:bg-muted [&_pre]:p-3.5 [&_pre]:rounded-lg [&_pre]:overflow-x-auto [&_pre_code]:bg-transparent [&_pre_code]:p-0 [&_blockquote]:border-l-2 [&_blockquote]:border-primary/30 [&_blockquote]:pl-3 [&_blockquote]:italic [&_blockquote]:text-muted-foreground [&_hr]:my-4 [&_strong]:font-semibold">
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{msg.content}</ReactMarkdown>
                     </div>
                   ) : (
-                    msg.content
-                  )
-                ) : (
-                  <span className="flex items-center gap-2 text-muted-foreground">
-                    <Loader2 className="size-3.5 animate-spin" /> Thinking...
-                  </span>
-                )}
-              </div>
+                    <span className="flex items-center gap-2 text-muted-foreground">
+                      <Loader2 className="size-3.5 animate-spin" /> Thinking...
+                    </span>
+                  )}
+                </div>
+              )}
               {msg.role === "user" && (
                 <div className="w-7 h-7 rounded-lg bg-muted flex items-center justify-center shrink-0 mt-0.5">
                   <User className="size-3.5 text-muted-foreground" />
