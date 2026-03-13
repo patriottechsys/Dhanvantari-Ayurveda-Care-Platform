@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
@@ -17,6 +17,7 @@ import { cn } from "@/lib/utils";
 import DoshaAssessmentWizard from "@/components/dosha-assessment-wizard";
 import DoshaRadarChart from "@/components/dosha-radar-chart";
 import AiInsightsCard from "@/components/ai-insights-card";
+import SortableAssignmentList, { type AssignmentItem } from "@/components/sortable-assignment-list";
 import dynamic from "next/dynamic";
 const PrintPatientPlan = dynamic(() => import("@/components/print-patient-plan"), { ssr: false });
 
@@ -184,10 +185,18 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [addYogaOpen, setAddYogaOpen] = useState(false);
   const [yogaSearch, setYogaSearch] = useState("");
   const [showPrint, setShowPrint] = useState(false);
+  const [yogaConfigStep, setYogaConfigStep] = useState<{ id: number; name: string } | null>(null);
+  const [yogaFields, setYogaFields] = useState<Record<string, string>>({});
+  const [editYogaId, setEditYogaId] = useState<number | null>(null);
+  const [editYogaFields, setEditYogaFields] = useState<Record<string, string>>({});
 
   // ── Pranayama assignment (backend-powered) ────────────────────────────
   const [addPranayamaOpen, setAddPranayamaOpen] = useState(false);
   const [pranayamaSearch, setPranayamaSearch] = useState("");
+  const [pranayamaConfigStep, setPranayamaConfigStep] = useState<{ id: number; name: string } | null>(null);
+  const [pranayamaFields, setPranayamaFields] = useState<Record<string, string>>({});
+  const [editPranayamaId, setEditPranayamaId] = useState<number | null>(null);
+  const [editPranayamaFields, setEditPranayamaFields] = useState<Record<string, string>>({});
 
   const { data: yogaLib = [] } = useQuery({
     queryKey: ["yoga-lib", yogaSearch],
@@ -268,11 +277,22 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   });
 
   const addYogaMutation = useMutation({
-    mutationFn: (asanaId: number) =>
-      planYogaApi.assign(plan.id, { asana_id: asanaId }),
+    mutationFn: (data: Record<string, unknown>) =>
+      planYogaApi.assign(plan.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plan-yoga", plan?.id] });
       setAddYogaOpen(false);
+      setYogaConfigStep(null);
+      setYogaFields({});
+    },
+  });
+
+  const updateYogaMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, string> }) =>
+      planYogaApi.update(plan.id, id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan-yoga", plan?.id] });
+      setEditYogaId(null);
     },
   });
 
@@ -281,12 +301,28 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-yoga", plan?.id] }),
   });
 
+  const reorderYogaMutation = useMutation({
+    mutationFn: (ids: number[]) => planYogaApi.reorder(plan.id, ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-yoga", plan?.id] }),
+  });
+
   const addPranayamaMutation = useMutation({
-    mutationFn: (pranayamaId: number) =>
-      planPranayamaApi.assign(plan.id, { pranayama_id: pranayamaId }),
+    mutationFn: (data: Record<string, unknown>) =>
+      planPranayamaApi.assign(plan.id, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] });
       setAddPranayamaOpen(false);
+      setPranayamaConfigStep(null);
+      setPranayamaFields({});
+    },
+  });
+
+  const updatePranayamaMutation = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: Record<string, string> }) =>
+      planPranayamaApi.update(plan.id, id, data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] });
+      setEditPranayamaId(null);
     },
   });
 
@@ -294,6 +330,57 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     mutationFn: (assignmentId: number) => planPranayamaApi.remove(plan.id, assignmentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] }),
   });
+
+  const reorderPranayamaMutation = useMutation({
+    mutationFn: (ids: number[]) => planPranayamaApi.reorder(plan.id, ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] }),
+  });
+
+  // ── Assignment item mappers ─────────────────────────────────────────────
+  const yogaItems: AssignmentItem[] = assignedYogaRaw.map((y: { id: number; asana_id: number; frequency?: string | null; duration?: string | null; practice_time?: string | null; notes?: string | null; asana?: { name: string; name_sanskrit?: string | null; level?: string | null; hold_duration?: string | null } | null }) => ({
+    id: y.id,
+    title: y.asana?.name ?? `Asana #${y.asana_id}`,
+    subtitle: y.asana?.name_sanskrit,
+    badges: [y.asana?.level].filter(Boolean) as string[],
+    meta: [y.frequency, y.duration, y.practice_time].filter(Boolean).join(" · "),
+    notes: y.notes,
+  }));
+
+  const pranayamaItems: AssignmentItem[] = assignedPranayamaRaw.map((p: { id: number; pranayama_id: number; frequency?: string | null; duration?: string | null; rounds?: string | null; practice_time?: string | null; notes?: string | null; pranayama?: { name: string; name_sanskrit?: string | null; category?: string | null; difficulty?: string | null } | null }) => ({
+    id: p.id,
+    title: p.pranayama?.name ?? `Exercise #${p.pranayama_id}`,
+    subtitle: p.pranayama?.name_sanskrit,
+    badges: [p.pranayama?.difficulty, p.pranayama?.category].filter(Boolean) as string[],
+    meta: [p.frequency, p.duration, p.rounds, p.practice_time].filter(Boolean).join(" · "),
+    notes: p.notes,
+  }));
+
+  const handleEditYoga = useCallback((assignmentId: number) => {
+    const item = assignedYogaRaw.find((y: { id: number }) => y.id === assignmentId);
+    if (!item) return;
+    setEditYogaFields({
+      frequency: item.frequency || "",
+      duration: item.duration || "",
+      hold_time: item.hold_time || "",
+      repetitions: item.repetitions || "",
+      practice_time: item.practice_time || "",
+      notes: item.notes || "",
+    });
+    setEditYogaId(assignmentId);
+  }, [assignedYogaRaw]);
+
+  const handleEditPranayama = useCallback((assignmentId: number) => {
+    const item = assignedPranayamaRaw.find((p: { id: number }) => p.id === assignmentId);
+    if (!item) return;
+    setEditPranayamaFields({
+      frequency: item.frequency || "",
+      duration: item.duration || "",
+      rounds: item.rounds || "",
+      practice_time: item.practice_time || "",
+      notes: item.notes || "",
+    });
+    setEditPranayamaId(assignmentId);
+  }, [assignedPranayamaRaw]);
 
   const addFollowupMutation = useMutation({
     mutationFn: () => followupsApi.create({ ...followupForm, patient_id: patientId }),
@@ -976,28 +1063,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                   {assignedYogaRaw.length === 0 && (
                     <p className="text-sm text-muted-foreground">No yoga asanas assigned yet.</p>
                   )}
-                  <div className="space-y-2">
-                    {assignedYogaRaw.map((y: { id: number; asana_id: number; frequency: string | null; duration: string | null; hold_time: string | null; repetitions: string | null; practice_time: string | null; include_video_link: boolean; notes: string | null; asana: { name: string; name_sanskrit: string | null; level: string | null; hold_duration: string | null } | null }) => (
-                      <div key={y.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{y.asana?.name ?? `Asana #${y.asana_id}`}</p>
-                          {y.asana?.name_sanskrit && <p className="text-xs text-muted-foreground italic">{y.asana.name_sanskrit}</p>}
-                          <p className="text-xs text-muted-foreground">
-                            {y.asana?.level}{y.asana?.hold_duration && ` · ${y.asana.hold_duration}`}
-                            {y.frequency && ` · ${y.frequency}`}
-                            {y.duration && ` · ${y.duration}`}
-                            {y.practice_time && ` · ${y.practice_time}`}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removeYogaMutation.mutate(y.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <SortableAssignmentList
+                    items={yogaItems}
+                    onReorder={(ids) => reorderYogaMutation.mutate(ids)}
+                    onEdit={handleEditYoga}
+                    onRemove={(id) => removeYogaMutation.mutate(id)}
+                  />
                 </div>
 
                 {/* Pranayama */}
@@ -1014,29 +1085,12 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                   {assignedPranayamaRaw.length === 0 && (
                     <p className="text-sm text-muted-foreground">No pranayama exercises assigned yet.</p>
                   )}
-                  <div className="space-y-2">
-                    {assignedPranayamaRaw.map((p: { id: number; pranayama_id: number; duration: string | null; rounds: string | null; frequency: string | null; practice_time: string | null; notes: string | null; pranayama: { name: string; name_sanskrit: string | null; category: string | null; difficulty: string | null } | null }) => (
-                      <div key={p.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{p.pranayama?.name ?? `Exercise #${p.pranayama_id}`}</p>
-                          {p.pranayama?.name_sanskrit && <p className="text-xs text-muted-foreground italic">{p.pranayama.name_sanskrit}</p>}
-                          <p className="text-xs text-muted-foreground">
-                            {p.pranayama?.difficulty}{p.pranayama?.category && ` · ${p.pranayama.category}`}
-                            {p.frequency && ` · ${p.frequency}`}
-                            {p.duration && ` · ${p.duration}`}
-                            {p.practice_time && ` · ${p.practice_time}`}
-                            {p.rounds && ` · ${p.rounds}`}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => removePranayamaMutation.mutate(p.id)}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <Trash2 className="size-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
+                  <SortableAssignmentList
+                    items={pranayamaItems}
+                    onReorder={(ids) => reorderPranayamaMutation.mutate(ids)}
+                    onEdit={handleEditPranayama}
+                    onRemove={(id) => removePranayamaMutation.mutate(id)}
+                  />
                 </div>
               </>
             )}
@@ -1385,56 +1439,132 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </Dialog>
 
-      {/* Add Yoga */}
-      <Dialog open={addYogaOpen} onClose={() => setAddYogaOpen(false)} title="Add Yoga Asana" className="max-w-lg">
-        <div className="space-y-3">
-          <Input placeholder="Search yoga asanas…" value={yogaSearch} onChange={(e) => setYogaSearch(e.target.value)} />
-          <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
-            {yogaLib
-              .filter((y: { id: number }) => !assignedYogaRaw.some((a: { asana_id: number }) => a.asana_id === y.id))
-              .map((y: { id: number; name: string; name_sanskrit: string | null; level: string | null; hold_duration: string | null; dosha_effect: string | null }) => (
-                <button
-                  key={y.id}
-                  onClick={() => addYogaMutation.mutate(y.id)}
-                  className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
-                >
-                  <p className="text-sm font-medium">{y.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {y.name_sanskrit} &middot; {y.level}{y.hold_duration && ` · ${y.hold_duration}`}{y.dosha_effect && ` · ${y.dosha_effect}`}
-                  </p>
-                </button>
-              ))}
-            {yogaLib.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No yoga asanas found. Seed the database first.</p>
-            )}
+      {/* Add Yoga — two-step: select → configure */}
+      <Dialog
+        open={addYogaOpen}
+        onClose={() => { setAddYogaOpen(false); setYogaConfigStep(null); setYogaFields({}); }}
+        title={yogaConfigStep ? `Configure: ${yogaConfigStep.name}` : "Add Yoga Asana"}
+        className="max-w-lg"
+      >
+        {!yogaConfigStep ? (
+          <div className="space-y-3">
+            <Input placeholder="Search yoga asanas…" value={yogaSearch} onChange={(e) => setYogaSearch(e.target.value)} />
+            <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
+              {yogaLib
+                .filter((y: { id: number }) => !assignedYogaRaw.some((a: { asana_id: number }) => a.asana_id === y.id))
+                .map((y: { id: number; name: string; name_sanskrit: string | null; level: string | null; hold_duration: string | null; dosha_effect: string | null }) => (
+                  <button
+                    key={y.id}
+                    onClick={() => { setYogaConfigStep({ id: y.id, name: y.name }); setYogaFields({}); }}
+                    className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                  >
+                    <p className="text-sm font-medium">{y.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {y.name_sanskrit} &middot; {y.level}{y.hold_duration && ` · ${y.hold_duration}`}{y.dosha_effect && ` · ${y.dosha_effect}`}
+                    </p>
+                  </button>
+                ))}
+              {yogaLib.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No yoga asanas found.</p>
+              )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); addYogaMutation.mutate({ asana_id: yogaConfigStep.id, ...yogaFields }); }} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Frequency</Label><Input placeholder="e.g. Daily" value={yogaFields.frequency ?? ""} onChange={(e) => setYogaFields((f) => ({ ...f, frequency: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Duration</Label><Input placeholder="e.g. 10 minutes" value={yogaFields.duration ?? ""} onChange={(e) => setYogaFields((f) => ({ ...f, duration: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Hold Time</Label><Input placeholder="e.g. 30 seconds" value={yogaFields.hold_time ?? ""} onChange={(e) => setYogaFields((f) => ({ ...f, hold_time: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Practice Time</Label><Input placeholder="e.g. Morning" value={yogaFields.practice_time ?? ""} onChange={(e) => setYogaFields((f) => ({ ...f, practice_time: e.target.value }))} /></div>
+            </div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} placeholder="Any special instructions…" value={yogaFields.notes ?? ""} onChange={(e) => setYogaFields((f) => ({ ...f, notes: e.target.value }))} /></div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setYogaConfigStep(null)}>Back</Button>
+              <Button type="submit" disabled={addYogaMutation.isPending}>{addYogaMutation.isPending ? "Adding…" : "Add to Plan"}</Button>
+            </div>
+          </form>
+        )}
       </Dialog>
 
-      {/* Add Pranayama */}
-      <Dialog open={addPranayamaOpen} onClose={() => setAddPranayamaOpen(false)} title="Add Pranayama Exercise" className="max-w-lg">
-        <div className="space-y-3">
-          <Input placeholder="Search pranayama exercises…" value={pranayamaSearch} onChange={(e) => setPranayamaSearch(e.target.value)} />
-          <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
-            {pranayamaLib
-              .filter((p: { id: number }) => !assignedPranayamaRaw.some((a: { pranayama_id: number }) => a.pranayama_id === p.id))
-              .map((p: { id: number; name: string; name_sanskrit: string | null; category: string | null; difficulty: string | null; dosha_effect: string | null; duration_range: string | null }) => (
-                <button
-                  key={p.id}
-                  onClick={() => addPranayamaMutation.mutate(p.id)}
-                  className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
-                >
-                  <p className="text-sm font-medium">{p.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {p.name_sanskrit}{p.category && ` · ${p.category}`}{p.difficulty && ` · ${p.difficulty}`}{p.dosha_effect && ` · ${p.dosha_effect}`}
-                  </p>
-                </button>
-              ))}
-            {pranayamaLib.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">No pranayama exercises found. Add exercises to the library first.</p>
-            )}
+      {/* Edit Yoga Assignment */}
+      <Dialog open={editYogaId !== null} onClose={() => setEditYogaId(null)} title="Edit Yoga Assignment" className="max-w-lg">
+        <form onSubmit={(e) => { e.preventDefault(); if (editYogaId) updateYogaMutation.mutate({ id: editYogaId, data: editYogaFields }); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Frequency</Label><Input placeholder="e.g. Daily" value={editYogaFields.frequency ?? ""} onChange={(e) => setEditYogaFields((f) => ({ ...f, frequency: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Duration</Label><Input placeholder="e.g. 10 minutes" value={editYogaFields.duration ?? ""} onChange={(e) => setEditYogaFields((f) => ({ ...f, duration: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Hold Time</Label><Input placeholder="e.g. 30 seconds" value={editYogaFields.hold_time ?? ""} onChange={(e) => setEditYogaFields((f) => ({ ...f, hold_time: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Practice Time</Label><Input placeholder="e.g. Morning" value={editYogaFields.practice_time ?? ""} onChange={(e) => setEditYogaFields((f) => ({ ...f, practice_time: e.target.value }))} /></div>
           </div>
-        </div>
+          <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} placeholder="Any special instructions…" value={editYogaFields.notes ?? ""} onChange={(e) => setEditYogaFields((f) => ({ ...f, notes: e.target.value }))} /></div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEditYogaId(null)}>Cancel</Button>
+            <Button type="submit" disabled={updateYogaMutation.isPending}>{updateYogaMutation.isPending ? "Saving…" : "Save"}</Button>
+          </div>
+        </form>
+      </Dialog>
+
+      {/* Add Pranayama — two-step: select → configure */}
+      <Dialog
+        open={addPranayamaOpen}
+        onClose={() => { setAddPranayamaOpen(false); setPranayamaConfigStep(null); setPranayamaFields({}); }}
+        title={pranayamaConfigStep ? `Configure: ${pranayamaConfigStep.name}` : "Add Pranayama Exercise"}
+        className="max-w-lg"
+      >
+        {!pranayamaConfigStep ? (
+          <div className="space-y-3">
+            <Input placeholder="Search pranayama exercises…" value={pranayamaSearch} onChange={(e) => setPranayamaSearch(e.target.value)} />
+            <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
+              {pranayamaLib
+                .filter((p: { id: number }) => !assignedPranayamaRaw.some((a: { pranayama_id: number }) => a.pranayama_id === p.id))
+                .map((p: { id: number; name: string; name_sanskrit: string | null; category: string | null; difficulty: string | null; dosha_effect: string | null; duration_range: string | null }) => (
+                  <button
+                    key={p.id}
+                    onClick={() => { setPranayamaConfigStep({ id: p.id, name: p.name }); setPranayamaFields({}); }}
+                    className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                  >
+                    <p className="text-sm font-medium">{p.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {p.name_sanskrit}{p.category && ` · ${p.category}`}{p.difficulty && ` · ${p.difficulty}`}{p.dosha_effect && ` · ${p.dosha_effect}`}
+                    </p>
+                  </button>
+                ))}
+              {pranayamaLib.length === 0 && (
+                <p className="text-sm text-muted-foreground text-center py-4">No pranayama exercises found.</p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); addPranayamaMutation.mutate({ pranayama_id: pranayamaConfigStep.id, ...pranayamaFields }); }} className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1"><Label>Frequency</Label><Input placeholder="e.g. Daily" value={pranayamaFields.frequency ?? ""} onChange={(e) => setPranayamaFields((f) => ({ ...f, frequency: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Duration</Label><Input placeholder="e.g. 10 minutes" value={pranayamaFields.duration ?? ""} onChange={(e) => setPranayamaFields((f) => ({ ...f, duration: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Rounds</Label><Input placeholder="e.g. 5 rounds" value={pranayamaFields.rounds ?? ""} onChange={(e) => setPranayamaFields((f) => ({ ...f, rounds: e.target.value }))} /></div>
+              <div className="space-y-1"><Label>Practice Time</Label><Input placeholder="e.g. Morning" value={pranayamaFields.practice_time ?? ""} onChange={(e) => setPranayamaFields((f) => ({ ...f, practice_time: e.target.value }))} /></div>
+            </div>
+            <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} placeholder="Any special instructions…" value={pranayamaFields.notes ?? ""} onChange={(e) => setPranayamaFields((f) => ({ ...f, notes: e.target.value }))} /></div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setPranayamaConfigStep(null)}>Back</Button>
+              <Button type="submit" disabled={addPranayamaMutation.isPending}>{addPranayamaMutation.isPending ? "Adding…" : "Add to Plan"}</Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      {/* Edit Pranayama Assignment */}
+      <Dialog open={editPranayamaId !== null} onClose={() => setEditPranayamaId(null)} title="Edit Pranayama Assignment" className="max-w-lg">
+        <form onSubmit={(e) => { e.preventDefault(); if (editPranayamaId) updatePranayamaMutation.mutate({ id: editPranayamaId, data: editPranayamaFields }); }} className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Frequency</Label><Input placeholder="e.g. Daily" value={editPranayamaFields.frequency ?? ""} onChange={(e) => setEditPranayamaFields((f) => ({ ...f, frequency: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Duration</Label><Input placeholder="e.g. 10 minutes" value={editPranayamaFields.duration ?? ""} onChange={(e) => setEditPranayamaFields((f) => ({ ...f, duration: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Rounds</Label><Input placeholder="e.g. 5 rounds" value={editPranayamaFields.rounds ?? ""} onChange={(e) => setEditPranayamaFields((f) => ({ ...f, rounds: e.target.value }))} /></div>
+            <div className="space-y-1"><Label>Practice Time</Label><Input placeholder="e.g. Morning" value={editPranayamaFields.practice_time ?? ""} onChange={(e) => setEditPranayamaFields((f) => ({ ...f, practice_time: e.target.value }))} /></div>
+          </div>
+          <div className="space-y-1"><Label>Notes</Label><Textarea rows={2} placeholder="Any special instructions…" value={editPranayamaFields.notes ?? ""} onChange={(e) => setEditPranayamaFields((f) => ({ ...f, notes: e.target.value }))} /></div>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={() => setEditPranayamaId(null)}>Cancel</Button>
+            <Button type="submit" disabled={updatePranayamaMutation.isPending}>{updatePranayamaMutation.isPending ? "Saving…" : "Save"}</Button>
+          </div>
+        </form>
       </Dialog>
 
       {/* New Follow-up */}

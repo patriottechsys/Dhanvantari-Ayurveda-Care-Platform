@@ -56,6 +56,18 @@ class PlanPranayamaCreate(BaseModel):
     notes: str | None = None
 
 
+class PlanPranayamaUpdate(BaseModel):
+    duration: str | None = None
+    rounds: str | None = None
+    frequency: str | None = None
+    practice_time: str | None = None
+    notes: str | None = None
+
+
+class ReorderBody(BaseModel):
+    ids: list[int]
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _pranayama_dict(p: Pranayama, videos: list | None = None) -> dict:
@@ -201,7 +213,7 @@ async def list_plan_pranayama(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(PlanPranayama).where(PlanPranayama.plan_id == plan_id)
+        select(PlanPranayama).where(PlanPranayama.plan_id == plan_id).order_by(PlanPranayama.sort_order, PlanPranayama.id)
     )
     items = result.scalars().all()
     out = []
@@ -217,6 +229,7 @@ async def list_plan_pranayama(
             "frequency": item.frequency,
             "practice_time": item.practice_time,
             "notes": item.notes,
+            "sort_order": item.sort_order,
             "pranayama": _pranayama_dict(pranayama) if pranayama else None,
         })
     return out
@@ -257,3 +270,47 @@ async def remove_pranayama_from_plan(
         raise HTTPException(status_code=404, detail="Assignment not found")
     await db.delete(item)
     return None
+
+
+@plan_pranayama_router.patch("/{plan_id}/pranayama/{assignment_id}")
+async def update_plan_pranayama(
+    plan_id: int,
+    assignment_id: int,
+    body: PlanPranayamaUpdate,
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PlanPranayama).where(
+            PlanPranayama.id == assignment_id,
+            PlanPranayama.plan_id == plan_id,
+        )
+    )
+    item = result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(item, field, value)
+    await db.flush()
+    return {"message": "Updated"}
+
+
+@plan_pranayama_router.put("/{plan_id}/pranayama/reorder")
+async def reorder_plan_pranayama(
+    plan_id: int,
+    body: ReorderBody,
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    for idx, assignment_id in enumerate(body.ids):
+        result = await db.execute(
+            select(PlanPranayama).where(
+                PlanPranayama.id == assignment_id,
+                PlanPranayama.plan_id == plan_id,
+            )
+        )
+        item = result.scalars().first()
+        if item:
+            item.sort_order = idx
+    await db.flush()
+    return {"message": "Reordered"}

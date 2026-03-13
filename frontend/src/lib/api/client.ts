@@ -188,9 +188,11 @@ export const videosApi = {
 };
 
 export const planYogaApi = {
-  list:   (planId: number)                => api.get(`/api/plans/${planId}/yoga`),
-  assign: (planId: number, data: unknown) => api.post(`/api/plans/${planId}/yoga`, data),
-  remove: (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/yoga/${assignmentId}`),
+  list:    (planId: number)                => api.get(`/api/plans/${planId}/yoga`),
+  assign:  (planId: number, data: unknown) => api.post(`/api/plans/${planId}/yoga`, data),
+  update:  (planId: number, assignmentId: number, data: unknown) => api.patch(`/api/plans/${planId}/yoga/${assignmentId}`, data),
+  remove:  (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/yoga/${assignmentId}`),
+  reorder: (planId: number, ids: number[]) => api.put(`/api/plans/${planId}/yoga/reorder`, { ids }),
 };
 
 export const pranayamaApi = {
@@ -203,9 +205,11 @@ export const pranayamaApi = {
 };
 
 export const planPranayamaApi = {
-  list:   (planId: number)                => api.get(`/api/plans/${planId}/pranayama`),
-  assign: (planId: number, data: unknown) => api.post(`/api/plans/${planId}/pranayama`, data),
-  remove: (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/pranayama/${assignmentId}`),
+  list:    (planId: number)                => api.get(`/api/plans/${planId}/pranayama`),
+  assign:  (planId: number, data: unknown) => api.post(`/api/plans/${planId}/pranayama`, data),
+  update:  (planId: number, assignmentId: number, data: unknown) => api.patch(`/api/plans/${planId}/pranayama/${assignmentId}`, data),
+  remove:  (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/pranayama/${assignmentId}`),
+  reorder: (planId: number, ids: number[]) => api.put(`/api/plans/${planId}/pranayama/reorder`, { ids }),
 };
 
 export const billingApi = {

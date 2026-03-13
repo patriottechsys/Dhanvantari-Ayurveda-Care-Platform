@@ -87,6 +87,20 @@ class PlanYogaCreate(BaseModel):
     notes: str | None = None
 
 
+class PlanYogaUpdate(BaseModel):
+    frequency: str | None = None
+    duration: str | None = None
+    hold_time: str | None = None
+    repetitions: str | None = None
+    practice_time: str | None = None
+    include_video_link: bool | None = None
+    notes: str | None = None
+
+
+class ReorderBody(BaseModel):
+    ids: list[int]
+
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _asana_dict(a: YogaAsana, videos: list | None = None) -> dict:
@@ -321,7 +335,7 @@ async def list_plan_yoga(
     db: AsyncSession = Depends(get_db),
 ):
     result = await db.execute(
-        select(PlanYogaAsana).where(PlanYogaAsana.plan_id == plan_id)
+        select(PlanYogaAsana).where(PlanYogaAsana.plan_id == plan_id).order_by(PlanYogaAsana.sort_order, PlanYogaAsana.id)
     )
     items = result.scalars().all()
     out = []
@@ -339,6 +353,7 @@ async def list_plan_yoga(
             "practice_time": item.practice_time,
             "include_video_link": item.include_video_link,
             "notes": item.notes,
+            "sort_order": item.sort_order,
             "asana": _asana_dict(asana) if asana else None,
         })
     return out
@@ -375,3 +390,47 @@ async def remove_yoga_from_plan(
         raise HTTPException(status_code=404, detail="Assignment not found")
     await db.delete(item)
     return None
+
+
+@plan_yoga_router.patch("/{plan_id}/yoga/{assignment_id}")
+async def update_plan_yoga(
+    plan_id: int,
+    assignment_id: int,
+    body: PlanYogaUpdate,
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(PlanYogaAsana).where(
+            PlanYogaAsana.id == assignment_id,
+            PlanYogaAsana.plan_id == plan_id,
+        )
+    )
+    item = result.scalars().first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Assignment not found")
+    for field, value in body.model_dump(exclude_none=True).items():
+        setattr(item, field, value)
+    await db.flush()
+    return {"message": "Updated"}
+
+
+@plan_yoga_router.put("/{plan_id}/yoga/reorder")
+async def reorder_plan_yoga(
+    plan_id: int,
+    body: ReorderBody,
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    for idx, assignment_id in enumerate(body.ids):
+        result = await db.execute(
+            select(PlanYogaAsana).where(
+                PlanYogaAsana.id == assignment_id,
+                PlanYogaAsana.plan_id == plan_id,
+            )
+        )
+        item = result.scalars().first()
+        if item:
+            item.sort_order = idx
+    await db.flush()
+    return {"message": "Reordered"}

@@ -45,6 +45,7 @@ class PlanPranayama(Base):
     frequency:     Mapped[str | None] = mapped_column(String(100))      # "Daily", "2x per day"
     practice_time: Mapped[str | None] = mapped_column(String(100))      # "Morning", "Before bed"
     notes:         Mapped[str | None] = mapped_column(Text)
+    sort_order:    Mapped[int]        = mapped_column(Integer, default=0)
 
     plan:      Mapped["ConsultationPlan"] = relationship()  # noqa: F821
     pranayama: Mapped["Pranayama"]        = relationship()

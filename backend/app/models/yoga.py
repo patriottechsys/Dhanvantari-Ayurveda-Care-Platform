@@ -78,6 +78,7 @@ class PlanYogaAsana(Base):
     practice_time:    Mapped[str | None] = mapped_column(String(100))  # "Morning", "Before bed"
     include_video_link: Mapped[bool]     = mapped_column(Boolean, default=False)
     notes:     Mapped[str | None] = mapped_column(Text)
+    sort_order: Mapped[int]       = mapped_column(Integer, default=0)
 
     plan:  Mapped["ConsultationPlan"] = relationship()  # noqa: F821
     asana: Mapped["YogaAsana"]        = relationship()
