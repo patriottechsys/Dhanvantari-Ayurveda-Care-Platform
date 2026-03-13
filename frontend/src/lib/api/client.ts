@@ -131,9 +131,11 @@ export const followupsApi = {
 };
 
 export const aiApi = {
-  chat:      (data: unknown)     => api.post("/api/ai/chat", data),
-  draftPlan: (patientId: number) => api.post(`/api/ai/draft-plan/${patientId}`, {}),
-  insights:  (patientId: number) => api.get(`/api/ai/insights/${patientId}`),
+  chat:                (data: unknown)        => api.post("/api/ai/chat", data),
+  draftPlan:           (patientId: number)    => api.post(`/api/ai/draft-plan/${patientId}`, {}),
+  insights:            (patientId: number)    => api.get(`/api/ai/insights/${patientId}`),
+  interpretAssessment: (assessmentId: number) => api.post(`/api/ai/interpret-assessment/${assessmentId}`, {}),
+  dashboardSummary:    ()                     => api.get("/api/ai/dashboard-summary"),
 };
 
 export const portalApi = {

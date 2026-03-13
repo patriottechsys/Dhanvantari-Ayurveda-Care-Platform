@@ -4,8 +4,8 @@ import { useState } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2 } from "lucide-react";
-import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi } from "@/lib/api/client";
+import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar } from "lucide-react";
+import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,6 +15,8 @@ import { Dialog } from "@/components/ui/dialog";
 import { Badge, DoshaBadge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import DoshaAssessmentWizard from "@/components/dosha-assessment-wizard";
+import DoshaRadarChart from "@/components/dosha-radar-chart";
+import AiInsightsCard from "@/components/ai-insights-card";
 
 type Tab = "overview" | "plan" | "checkins" | "followups" | "notes" | "assessment";
 
@@ -50,14 +52,14 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const { data: plan } = useQuery({
     queryKey: ["plan", patientId],
     queryFn: () => plansApi.get(patientId).then((r) => r.data),
-    enabled: tab === "plan",
+    enabled: tab === "plan" || tab === "overview",
     retry: false,
   });
 
   const { data: checkins = [] } = useQuery({
     queryKey: ["checkins", patientId],
     queryFn: () => checkinsApi.list(patientId).then((r) => r.data),
-    enabled: tab === "checkins",
+    enabled: tab === "checkins" || tab === "overview",
   });
 
   const { data: followups = [] } = useQuery({
@@ -78,6 +80,14 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     enabled: tab === "assessment",
   });
   const [showWizard, setShowWizard] = useState(false);
+
+  // ── AI Plan Draft state ────────────────────────────────────────────────
+  const [aiDraftPlan, setAiDraftPlan] = useState<Record<string, unknown> | null>(null);
+  const [aiDraftPlanLoading, setAiDraftPlanLoading] = useState(false);
+
+  // ── AI Assessment Interpretation state ──────────────────────────────────
+  const [interpretations, setInterpretations] = useState<Record<number, Record<string, unknown>>>({});
+  const [interpretLoading, setInterpretLoading] = useState<number | null>(null);
 
   // ── Notes state ─────────────────────────────────────────────────────────
   const [viewingNote, setViewingNote] = useState<Record<string, unknown> | null>(null);
@@ -323,6 +333,102 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         {/* ── Overview ────────────────────────────────────────────────── */}
         {tab === "overview" && (
           <div className="max-w-3xl space-y-6">
+            {/* Health KPI Dashboard */}
+            {(() => {
+              const recentCheckins = (checkins as Array<{ habit_completion_pct: number; avg_symptom_score?: number; date: string }>).slice(0, 7);
+              const avgCompliance = recentCheckins.length > 0
+                ? recentCheckins.reduce((s, c) => s + c.habit_completion_pct, 0) / recentCheckins.length : null;
+
+              // Symptom trend: first 3 vs last 3
+              const allCheckins = checkins as Array<{ avg_symptom_score?: number; date: string }>;
+              let trendDelta: number | null = null;
+              if (allCheckins.length >= 6) {
+                const first3 = allCheckins.slice(-3).map(c => c.avg_symptom_score ?? 0);
+                const last3 = allCheckins.slice(0, 3).map(c => c.avg_symptom_score ?? 0);
+                const avgFirst = first3.reduce((s, v) => s + v, 0) / 3;
+                const avgLast = last3.reduce((s, v) => s + v, 0) / 3;
+                trendDelta = avgLast - avgFirst;
+              }
+
+              const daysOnPlan = plan?.start_date
+                ? Math.floor((Date.now() - new Date(plan.start_date).getTime()) / 86400000)
+                : null;
+
+              const lastCheckinDate = allCheckins.length > 0 ? allCheckins[0].date : null;
+
+              if (!avgCompliance && !daysOnPlan && !lastCheckinDate) return null;
+
+              return (
+                <section className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {/* Compliance */}
+                  <div className="rounded-xl border bg-card p-4 flex flex-col items-center gap-2">
+                    <div className="relative w-14 h-14">
+                      <svg viewBox="0 0 36 36" className="w-14 h-14 -rotate-90">
+                        <circle cx="18" cy="18" r="15.5" fill="none" stroke="#e5e7eb" strokeWidth="3" />
+                        <circle
+                          cx="18" cy="18" r="15.5" fill="none"
+                          stroke={avgCompliance != null ? (avgCompliance >= 75 ? "#10b981" : avgCompliance >= 50 ? "#f59e0b" : "#ef4444") : "#e5e7eb"}
+                          strokeWidth="3"
+                          strokeDasharray={`${(avgCompliance ?? 0) * 0.9738} 97.38`}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <span className="absolute inset-0 flex items-center justify-center text-xs font-semibold">
+                        {avgCompliance != null ? `${Math.round(avgCompliance)}%` : "—"}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground text-center">Compliance</p>
+                  </div>
+
+                  {/* Symptom Trend */}
+                  <div className="rounded-xl border bg-card p-4 flex flex-col items-center justify-center gap-1">
+                    {trendDelta != null ? (
+                      <>
+                        {trendDelta > 0.3 ? (
+                          <TrendingUp className="size-7 text-emerald-500" />
+                        ) : trendDelta < -0.3 ? (
+                          <TrendingDown className="size-7 text-red-500" />
+                        ) : (
+                          <Minus className="size-7 text-amber-500" />
+                        )}
+                        <span className={cn("text-sm font-semibold",
+                          trendDelta > 0.3 ? "text-emerald-600" : trendDelta < -0.3 ? "text-red-600" : "text-amber-600"
+                        )}>
+                          {trendDelta > 0 ? "+" : ""}{trendDelta.toFixed(1)}
+                        </span>
+                      </>
+                    ) : (
+                      <Activity className="size-7 text-muted-foreground/40" />
+                    )}
+                    <p className="text-[10px] text-muted-foreground text-center">Symptom Trend</p>
+                  </div>
+
+                  {/* Days on Protocol */}
+                  <div className="rounded-xl border bg-card p-4 flex flex-col items-center justify-center gap-1">
+                    <Calendar className="size-5 text-primary/60 mb-0.5" />
+                    <span className="text-lg font-semibold">{daysOnPlan ?? "—"}</span>
+                    <p className="text-[10px] text-muted-foreground text-center">
+                      {daysOnPlan != null ? "Days on Protocol" : "No Active Plan"}
+                    </p>
+                  </div>
+
+                  {/* Last Check-in */}
+                  <div className="rounded-xl border bg-card p-4 flex flex-col items-center justify-center gap-1">
+                    <Clock className="size-5 text-primary/60 mb-0.5" />
+                    <span className="text-xs font-medium text-center">
+                      {lastCheckinDate
+                        ? new Date(lastCheckinDate).toLocaleDateString("en-US", { month: "short", day: "numeric" })
+                        : "—"}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground text-center">Last Check-in</p>
+                  </div>
+                </section>
+              );
+            })()}
+
+            {/* AI Insights */}
+            <AiInsightsCard patientId={patientId} />
+
             <section className="rounded-xl border bg-card p-5 space-y-4">
               <h2 className="font-medium text-sm">Demographics</h2>
               <div className="grid grid-cols-2 gap-4 text-sm">
@@ -413,6 +519,9 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                             </p>
                           </div>
 
+                          {/* Dosha Radar Chart */}
+                          <DoshaRadarChart prakriti={prakriti} vikriti={vikriti} />
+
                           <div className="grid grid-cols-2 gap-4">
                             {/* Prakriti */}
                             <div className="space-y-2">
@@ -502,6 +611,68 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                               <p className="text-sm whitespace-pre-wrap">{a.notes}</p>
                             </div>
                           )}
+
+                          {/* AI Interpretation */}
+                          <div className="pt-2 border-t">
+                            {!interpretations[a.id] && interpretLoading !== a.id && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="gap-1.5"
+                                onClick={async () => {
+                                  setInterpretLoading(a.id);
+                                  try {
+                                    const res = await aiApi.interpretAssessment(a.id);
+                                    setInterpretations((prev) => ({ ...prev, [a.id]: res.data.interpretation }));
+                                  } catch {
+                                    // silently fail
+                                  } finally {
+                                    setInterpretLoading(null);
+                                  }
+                                }}
+                              >
+                                <Sparkles className="size-3.5" /> AI Interpretation
+                              </Button>
+                            )}
+                            {interpretLoading === a.id && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                                <Loader2 className="size-4 animate-spin" /> Generating clinical interpretation...
+                              </div>
+                            )}
+                            {interpretations[a.id] && (
+                              <div className="space-y-3 bg-gradient-to-br from-amber-50/60 to-orange-50/40 rounded-lg p-4">
+                                <div className="flex items-center gap-1.5 text-xs font-semibold text-primary uppercase tracking-wider">
+                                  <Sparkles className="size-3" /> AI Clinical Interpretation
+                                </div>
+                                {[
+                                  { key: "constitution_summary", label: "Constitution" },
+                                  { key: "imbalance_analysis", label: "Imbalance Analysis" },
+                                  { key: "clinical_observations", label: "Clinical Observations" },
+                                  { key: "dietary_direction", label: "Dietary Direction" },
+                                  { key: "lifestyle_direction", label: "Lifestyle Direction" },
+                                ].map(({ key, label }) => {
+                                  const val = interpretations[a.id][key];
+                                  if (!val) return null;
+                                  return (
+                                    <div key={key}>
+                                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+                                      <p className="text-sm leading-relaxed">{val as string}</p>
+                                    </div>
+                                  );
+                                })}
+                                {Array.isArray(interpretations[a.id].protocol_suggestions) && (
+                                  <div>
+                                    <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Protocol Suggestions</p>
+                                    <ul className="text-sm space-y-1 list-disc list-inside">
+                                      {(interpretations[a.id].protocol_suggestions as string[]).map((s, i) => (
+                                        <li key={i}>{s}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -516,25 +687,127 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         {tab === "plan" && (
           <div className="max-w-3xl space-y-5">
             {!plan ? (
-              <div className="rounded-xl border bg-card p-8 text-center space-y-3">
+              <div className="rounded-xl border bg-card p-8 text-center space-y-4">
                 <p className="text-muted-foreground text-sm">No active care plan.</p>
-                <Button onClick={() => createPlanMutation.mutate()} disabled={createPlanMutation.isPending}>
-                  {createPlanMutation.isPending ? "Creating…" : "Create Initial Protocol"}
-                </Button>
+                <div className="flex items-center justify-center gap-3">
+                  <Button onClick={() => createPlanMutation.mutate()} disabled={createPlanMutation.isPending}>
+                    {createPlanMutation.isPending ? "Creating…" : "Create Blank Protocol"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="gap-1.5"
+                    disabled={aiDraftPlanLoading}
+                    onClick={async () => {
+                      setAiDraftPlanLoading(true);
+                      try {
+                        const res = await aiApi.draftPlan(patientId);
+                        setAiDraftPlan(res.data.draft);
+                      } catch { /* ignore */ }
+                      finally { setAiDraftPlanLoading(false); }
+                    }}
+                  >
+                    <Sparkles className="size-4" />
+                    {aiDraftPlanLoading ? "Generating…" : "Generate with AI"}
+                  </Button>
+                </div>
+                {aiDraftPlanLoading && (
+                  <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                    <Loader2 className="size-4 animate-spin" /> AI is analyzing the patient profile...
+                  </div>
+                )}
+                {aiDraftPlan && (
+                  <div className="text-left rounded-xl border bg-gradient-to-br from-amber-50/60 to-orange-50/40 p-5 space-y-4 mt-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="size-4 text-primary" />
+                        <h3 className="font-medium text-sm">AI-Generated Draft</h3>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={async () => {
+                          await createPlanMutation.mutateAsync();
+                          // After plan is created, apply AI draft fields
+                          const updates: Record<string, string> = {};
+                          const fields = ["title", "foods_to_include", "foods_to_avoid", "lifestyle_notes", "breathing_notes", "nasal_care_notes", "followup_notes"];
+                          fields.forEach((f) => {
+                            if (aiDraftPlan[f]) updates[f] = aiDraftPlan[f] as string;
+                          });
+                          if (aiDraftPlan.duration_weeks) updates.duration_weeks = String(aiDraftPlan.duration_weeks);
+                          setPlanEdits(updates);
+                          setAiDraftPlan(null);
+                        }}
+                      >
+                        Apply to Plan
+                      </Button>
+                    </div>
+                    <p className="text-sm font-semibold">{String(aiDraftPlan.title ?? "")}</p>
+                    {aiDraftPlan.rationale ? <p className="text-sm text-muted-foreground italic">{String(aiDraftPlan.rationale)}</p> : null}
+                    {[
+                      { key: "foods_to_include", label: "Foods to Include" },
+                      { key: "foods_to_avoid", label: "Foods to Avoid" },
+                      { key: "lifestyle_notes", label: "Lifestyle" },
+                      { key: "breathing_notes", label: "Breathing" },
+                      { key: "followup_notes", label: "Follow-up" },
+                    ].map(({ key, label }) => {
+                      const val = aiDraftPlan[key];
+                      if (!val) return null;
+                      return (
+                        <div key={key}>
+                          <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">{label}</p>
+                          <p className="text-sm whitespace-pre-wrap">{String(val)}</p>
+                        </div>
+                      );
+                    })}
+                    {Array.isArray(aiDraftPlan.supplements) && (aiDraftPlan.supplements as Array<Record<string, string>>).length > 0 && (
+                      <div>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Suggested Supplements</p>
+                        <ul className="text-sm space-y-1 list-disc list-inside">
+                          {(aiDraftPlan.supplements as Array<Record<string, string>>).map((s, i) => (
+                            <li key={i}>{s.name} — {s.dose}, {s.frequency}. {s.purpose}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ) : (
               <>
                 <div className="flex items-center justify-between">
                   <h2 className="font-medium">{plan.title}</h2>
-                  <Button
-                    size="sm"
-                    onClick={() => updatePlanMutation.mutate(planEdits)}
-                    disabled={Object.keys(planEdits).length === 0 || updatePlanMutation.isPending}
-                    className="gap-1.5"
-                  >
-                    <Save className="size-3.5" />
-                    {updatePlanMutation.isPending ? "Saving…" : "Save Changes"}
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={aiDraftPlanLoading}
+                      onClick={async () => {
+                        setAiDraftPlanLoading(true);
+                        try {
+                          const res = await aiApi.draftPlan(patientId);
+                          const draft = res.data.draft;
+                          const updates: Record<string, string> = {};
+                          ["title", "foods_to_include", "foods_to_avoid", "lifestyle_notes", "breathing_notes", "nasal_care_notes", "followup_notes"].forEach((f) => {
+                            if (draft[f]) updates[f] = draft[f];
+                          });
+                          setPlanEdits(updates);
+                        } catch { /* ignore */ }
+                        finally { setAiDraftPlanLoading(false); }
+                      }}
+                    >
+                      <Sparkles className="size-3.5" />
+                      {aiDraftPlanLoading ? "Generating…" : "AI Rewrite"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => updatePlanMutation.mutate(planEdits)}
+                      disabled={Object.keys(planEdits).length === 0 || updatePlanMutation.isPending}
+                      className="gap-1.5"
+                    >
+                      <Save className="size-3.5" />
+                      {updatePlanMutation.isPending ? "Saving…" : "Save Changes"}
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Plan text fields */}

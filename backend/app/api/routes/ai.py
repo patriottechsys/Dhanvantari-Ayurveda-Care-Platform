@@ -1,6 +1,8 @@
 """
-AI routes: chat (streaming SSE), plan draft, check-in insights.
+AI routes: chat (streaming SSE), plan draft, check-in insights,
+assessment interpretation, dashboard summary.
 """
+from datetime import date, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -258,7 +260,210 @@ Be specific with numbers. Use a warm, clinical tone."""
     }
 
 
+# ── AI Assessment Interpretation ──────────────────────────────────────────
+
+@router.post("/interpret-assessment/{assessment_id}")
+async def interpret_assessment(
+    assessment_id: int,
+    db: AsyncSession = Depends(get_db),
+    current: Practitioner = Depends(require_active_subscription),
+):
+    """Generate AI clinical interpretation of a dosha assessment."""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+
+    from app.models.dosha_assessment import DoshaAssessment
+    from sqlalchemy.orm import selectinload
+
+    result = await db.execute(
+        select(DoshaAssessment)
+        .options(selectinload(DoshaAssessment.patient))
+        .where(DoshaAssessment.id == assessment_id, DoshaAssessment.practitioner_id == current.id)
+    )
+    assessment = result.scalar_one_or_none()
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    patient = assessment.patient
+    hp_result = await db.execute(
+        select(HealthProfile).where(HealthProfile.patient_id == patient.id)
+    )
+    hp = hp_result.scalar_one_or_none()
+
+    # Build assessment context
+    context = f"""
+Patient: {patient.full_name}
+Age: {_age(patient.dob) if patient.dob else 'unknown'}
+
+PRAKRITI (Constitution):
+Vata: {assessment.prakriti_vata}, Pitta: {assessment.prakriti_pitta}, Kapha: {assessment.prakriti_kapha}
+Result: {assessment.result_prakriti or 'not computed'}
+
+VIKRITI (Current Imbalance):
+Vata: {assessment.vikriti_vata}, Pitta: {assessment.vikriti_pitta}, Kapha: {assessment.vikriti_kapha}
+Result: {assessment.result_vikriti or 'not computed'}
+
+AGNI TYPE: {assessment.agni_type or 'not assessed'}
+AMA LEVEL: {assessment.ama_level or 'not assessed'}
+
+ASHTAVIDHA PAREEKSHA (8-Fold Exam):
+{_format_ashtavidha(assessment.ashtavidha_responses) if assessment.ashtavidha_responses else 'Not performed'}
+
+CHIEF COMPLAINTS: {hp.chief_complaints if hp else 'not recorded'}
+""".strip()
+
+    import anthropic as ac
+    import json
+
+    client = ac.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    prompt = f"""You are an expert Ayurvedic practitioner interpreting a clinical dosha assessment. Based on the data below, provide a thorough clinical interpretation.
+
+{context}
+
+Return a JSON object with this exact structure:
+{{
+  "constitution_summary": "2-3 sentences describing the patient's prakriti and what it means clinically",
+  "imbalance_analysis": "2-3 sentences analyzing the vikriti — which doshas are elevated and what symptoms this explains",
+  "clinical_observations": "2-3 sentences on key findings from the 8-fold exam and agni/ama assessment",
+  "protocol_suggestions": ["suggestion 1", "suggestion 2", "suggestion 3", "suggestion 4", "suggestion 5"],
+  "dietary_direction": "2-3 sentences on dietary guidance based on constitution and current imbalance",
+  "lifestyle_direction": "2-3 sentences on lifestyle recommendations"
+}}
+
+Use proper Ayurvedic terminology. Be specific and clinically relevant. Return only valid JSON."""
+
+    message = client.messages.create(
+        model=settings.AI_MODEL,
+        max_tokens=2000,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    try:
+        content = message.content[0].text
+        if content.startswith("```"):
+            content = content.split("```")[1]
+            if content.startswith("json"):
+                content = content[4:]
+        interpretation = json.loads(content.strip())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI response parse error: {e}")
+
+    return {"interpretation": interpretation, "assessment_id": assessment_id}
+
+
+# ── AI Dashboard Summary ─────────────────────────────────────────────────
+
+@router.get("/dashboard-summary")
+async def dashboard_summary(
+    db: AsyncSession = Depends(get_db),
+    current: Practitioner = Depends(require_active_subscription),
+):
+    """Generate AI summary of the practitioner's practice — patient statuses, trends, recommendations."""
+    if not settings.ANTHROPIC_API_KEY:
+        raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
+
+    from app.models.checkin import DailyCheckIn
+    from sqlalchemy import desc, func
+
+    # Get all patients with their health profiles
+    patients_result = await db.execute(
+        select(Patient).where(Patient.practitioner_id == current.id)
+    )
+    patients = patients_result.scalars().all()
+
+    if not patients:
+        return {"summary": "No patients yet. Add your first patient to get started.", "patient_count": 0}
+
+    patient_summaries = []
+    for p in patients:
+        # Get latest check-ins
+        ci_result = await db.execute(
+            select(DailyCheckIn)
+            .where(DailyCheckIn.patient_id == p.id)
+            .order_by(desc(DailyCheckIn.date))
+            .limit(7)
+        )
+        recent_checkins = ci_result.scalars().all()
+
+        # Get active plan
+        plan_result = await db.execute(
+            select(ConsultationPlan).where(
+                ConsultationPlan.patient_id == p.id,
+                ConsultationPlan.active == True,  # noqa: E712
+            )
+        )
+        plan = plan_result.scalar_one_or_none()
+
+        # Get health profile dosha
+        hp_result = await db.execute(
+            select(HealthProfile).where(HealthProfile.patient_id == p.id)
+        )
+        hp = hp_result.scalar_one_or_none()
+
+        summary = f"- {p.full_name} (dosha: {hp.dosha_primary if hp else 'unknown'})"
+        if plan:
+            days_on = (date.today() - plan.start_date).days if plan.start_date else 0
+            summary += f", active plan '{plan.title}' (day {days_on})"
+        else:
+            summary += ", NO active plan (needs attention)"
+
+        if recent_checkins:
+            avg_compliance = sum(ci.habit_completion_pct for ci in recent_checkins) / len(recent_checkins)
+            avg_symptoms = sum((ci.avg_symptom_score or 0) for ci in recent_checkins) / len(recent_checkins)
+            last_date = recent_checkins[0].date
+            summary += f", last check-in: {last_date}, avg compliance: {avg_compliance:.0f}%, avg symptom score: {avg_symptoms:.1f}/5"
+        else:
+            summary += ", NO check-ins"
+
+        patient_summaries.append(summary)
+
+    import anthropic as ac
+    from datetime import date as date_type
+
+    client = ac.Anthropic(api_key=settings.ANTHROPIC_API_KEY)
+
+    prompt = f"""You are an AI assistant for {current.name} at {current.practice_name or 'their Ayurveda practice'}.
+
+Here is a summary of all patients:
+{chr(10).join(patient_summaries)}
+
+Today is {date.today().isoformat()}.
+
+In 3-5 concise sentences, provide a practice overview:
+1. Which patients are progressing well
+2. Which need attention or follow-up
+3. Any actionable suggestions for the day
+
+Be warm, specific (use patient names), and concise. Use a professional clinical tone."""
+
+    message = client.messages.create(
+        model=settings.AI_MODEL,
+        max_tokens=500,
+        messages=[{"role": "user", "content": prompt}],
+    )
+
+    return {
+        "summary": message.content[0].text,
+        "patient_count": len(patients),
+        "generated_at": datetime.now().isoformat(),
+    }
+
+
 # ── Helpers ────────────────────────────────────────────────────────────────
+
+def _format_ashtavidha(responses: dict) -> str:
+    """Format ashtavidha responses into readable text."""
+    if not responses:
+        return "Not performed"
+    parts = []
+    for key, val in responses.items():
+        if isinstance(val, dict):
+            finding = val.get("finding", "")
+            notes = val.get("notes", "")
+            parts.append(f"{key}: {finding}" + (f" — {notes}" if notes else ""))
+    return "\n".join(parts)
+
 
 def _age(dob) -> int:
     from datetime import date

@@ -601,11 +601,419 @@ async def seed_demo():
         else:
             print("Dosha assessment already exists, skipping.")
 
+        # ── 9. Patient 2: Priya Venkatesh (Pitta, new intake) ──────────────────
+        result = await db.execute(
+            select(Patient)
+            .options(selectinload(Patient.health_profile), selectinload(Patient.checkin_token))
+            .where(
+                Patient.practitioner_id == practitioner.id,
+                Patient.first_name == "Priya",
+                Patient.last_name == "Venkatesh",
+            )
+        )
+        priya = result.scalars().first()
+
+        if not priya:
+            priya = Patient(
+                practitioner_id=practitioner.id,
+                first_name="Priya",
+                last_name="Venkatesh",
+                dob=date(1991, 8, 15),
+                sex="F",
+                email="priya.v@example.com",
+                phone="(512) 555-0192",
+                location="Bangalore, India (remote)",
+                occupation="Software Engineer — high screen time, sedentary",
+                weight_lbs=135.0,
+                exercise_notes="Yoga 2x/week, occasional walks. Mostly sedentary during work hours.",
+                diet_pattern="Vegetarian. Heavy on spicy food, coffee (3-4 cups/day). Skips breakfast frequently. Late dinners.",
+                sleep_notes="Difficulty falling asleep. Wakes between 2-3 AM (Pitta time). Average 5-6 hours.",
+                stress_level="HIGH",
+            )
+            db.add(priya)
+            await db.flush()
+            print(f"Created patient: Priya Venkatesh (id={priya.id})")
+
+            hp_priya = HealthProfile(
+                patient_id=priya.id,
+                dosha_primary="Pitta",
+                dosha_secondary="Vata",
+                dosha_imbalances="Pitta aggravation in digestive tract and skin. Secondary Vata disturbance from irregular lifestyle and sleep deprivation.",
+                agni_assessment="Tikshna Agni (sharp/excessive) — intense hunger, acid reflux when meals are delayed, irritability when fasting.",
+                ama_assessment="Mild — occasional skin breakouts and coated tongue in morning suggest mild Ama.",
+                prakriti_notes="Pitta-Vata prakriti. Sharp intellect, driven personality, competitive. Medium frame with warm skin.",
+                vikriti_notes="Current Pitta excess: acid reflux, skin rashes, irritability, insomnia during Pitta hours. Vata aggravation from irregular schedule.",
+                chief_complaints=(
+                    "1. Acid reflux and burning sensation after meals, especially spicy food.\n"
+                    "2. Recurring skin rashes on forearms and neck — worse in summer.\n"
+                    "3. Irritability and short temper, especially under work deadlines.\n"
+                    "4. Insomnia — difficulty falling asleep, waking at 2-3 AM.\n"
+                    "5. Tension headaches 2-3 times per week.\n"
+                    "6. Eye strain and dryness from prolonged screen time."
+                ),
+                medical_history="No major surgeries. History of childhood eczema. Occasional migraines since college.",
+                current_medications="None. Previously tried OTC antacids.",
+                allergies="Mild dust allergy. No food allergies known.",
+                nadi_notes="Pitta nadi — sharp, bounding, regular. Slightly fast rate.",
+                jihwa_notes="Slightly yellowish coating centrally. Red edges. No significant swelling.",
+                mutra_notes="Normal frequency. Slightly dark yellow — indicating mild dehydration.",
+                mala_notes="Regular but occasionally loose — Pitta pattern. 1-2 times daily.",
+            )
+            db.add(hp_priya)
+            await db.flush()
+
+            tok_priya = CheckInToken(patient_id=priya.id)
+            db.add(tok_priya)
+            await db.flush()
+
+            # Dosha assessment for Priya
+            priya_assessment = DoshaAssessment(
+                patient_id=priya.id,
+                practitioner_id=practitioner.id,
+                prakriti_vata=6,
+                prakriti_pitta=9,
+                prakriti_kapha=5,
+                prakriti_responses={
+                    "body_frame": "pitta", "body_weight": "pitta", "skin": "pitta",
+                    "hair": "pitta", "eyes": "pitta", "appetite": "pitta",
+                    "digestion": "pitta", "thirst": "pitta", "bowel_habits": "pitta",
+                    "sleep": "vata", "dreams": "pitta", "speech": "pitta",
+                    "mental_activity": "pitta", "memory": "pitta", "emotions": "pitta",
+                    "stress_response": "pitta", "activity_level": "pitta",
+                    "temperature": "vata", "sweating": "pitta", "joints": "vata",
+                },
+                vikriti_vata=5,
+                vikriti_pitta=9,
+                vikriti_kapha=3,
+                vikriti_responses={
+                    "anxiety": 1, "insomnia": 2, "dry_skin": 1, "constipation": 0,
+                    "joint_pain": 0, "cold_hands": 0, "weight_loss": 0,
+                    "acid_reflux": 3, "inflammation": 2, "irritability": 3,
+                    "excessive_heat": 2, "loose_stools": 1, "burning_eyes": 2, "excessive_sweating": 1,
+                    "congestion": 0, "weight_gain": 0, "lethargy": 0,
+                    "excess_mucus": 0, "sluggish_digestion": 0, "depression": 0, "attachment": 0,
+                },
+                agni_type="Tikshna Agni",
+                ama_level="Mild",
+                agni_responses={"appetite_pattern": "Tikshna Agni", "post_meal": "Tikshna Agni"},
+                ama_responses={"tongue_coating": 1, "body_odor": 0, "stool_quality": 1, "energy": 1},
+                ashtavidha_responses={
+                    "nadi": {"finding": "Sharp, bounding, regular (Pitta)", "notes": "Pitta nadi with fast rate. Clear and forceful."},
+                    "jihwa": {"finding": "Yellow coating, red edges (Pitta)", "notes": "Yellow central coating suggests Pitta in GI. Red edges."},
+                    "mutra": {"finding": "Dark yellow, slightly concentrated (Pitta)", "notes": "Mild dehydration, Pitta heat."},
+                    "mala": {"finding": "Loose, frequent (Pitta)", "notes": "1-2x daily, occasionally loose. Pitta pattern."},
+                    "shabda": {"finding": "Sharp, clear (Pitta)", "notes": "Clear articulation, slightly sharp tone."},
+                    "sparsha": {"finding": "Warm, slightly moist (Pitta)", "notes": "Warm skin, slight oiliness."},
+                    "drika": {"finding": "Sharp, reddish (Pitta)", "notes": "Slight redness from screen strain."},
+                    "akriti": {"finding": "Medium frame, athletic (Pitta)", "notes": "Medium build, proportional."},
+                },
+                result_prakriti="Pitta-Vata",
+                result_vikriti="Pitta",
+                notes="Clear Pitta aggravation with secondary Vata disturbance. Priority: cool Pitta in GI and skin, regulate sleep, reduce stimulants (coffee, spicy food). Recommend cooling diet, Pitta-pacifying herbs, and evening wind-down routine.",
+            )
+            db.add(priya_assessment)
+            await db.flush()
+
+            # Scheduled follow-up for Priya
+            fu_priya = FollowUp(
+                patient_id=priya.id,
+                practitioner_id=practitioner.id,
+                scheduled_date=date.today() + timedelta(days=5),
+                reason="Initial consultation follow-up",
+                notes="Review intake findings. Discuss dietary changes and Pitta-pacifying protocol. Set up care plan.",
+            )
+            db.add(fu_priya)
+            await db.flush()
+            print("Created Priya Venkatesh — Pitta-Vata, new intake (no care plan)")
+        else:
+            print(f"Patient Priya already exists (id={priya.id}), skipping.")
+
+        # ── 10. Patient 3: Arjun Patel (Vata, mid-treatment) ──────────────────
+        result = await db.execute(
+            select(Patient)
+            .options(selectinload(Patient.health_profile), selectinload(Patient.checkin_token))
+            .where(
+                Patient.practitioner_id == practitioner.id,
+                Patient.first_name == "Arjun",
+                Patient.last_name == "Patel",
+            )
+        )
+        arjun = result.scalars().first()
+
+        if not arjun:
+            arjun = Patient(
+                practitioner_id=practitioner.id,
+                first_name="Arjun",
+                last_name="Patel",
+                dob=date(1973, 11, 2),
+                sex="M",
+                email="arjun.patel@example.com",
+                phone="(512) 555-0847",
+                location="Austin, Texas",
+                occupation="Retired teacher — active in community volunteering",
+                weight_lbs=148.0,
+                exercise_notes="Daily morning walks (30 min). Gentle stretching. No heavy exercise.",
+                diet_pattern="Mostly vegetarian with occasional eggs. Prefers warm, cooked food. Eats regularly but portions are small.",
+                sleep_notes="Falls asleep easily but wakes early (4-5 AM). Light sleeper. Dreams frequently.",
+                stress_level="MODERATE",
+            )
+            db.add(arjun)
+            await db.flush()
+            print(f"Created patient: Arjun Patel (id={arjun.id})")
+
+            hp_arjun = HealthProfile(
+                patient_id=arjun.id,
+                dosha_primary="Vata",
+                dosha_secondary="Pitta",
+                dosha_imbalances="Vata aggravation in joints (Asthi dhatu) and nervous system. Mild Pitta in skin from sun exposure.",
+                agni_assessment="Vishama Agni (variable) — appetite fluctuates, sometimes skips meals without hunger.",
+                ama_assessment="Mild — morning stiffness and occasional tongue coating suggest low-grade Ama.",
+                prakriti_notes="Vata-Pitta prakriti. Thin frame, creative mind, enthusiastic. Quick to learn, quick to forget.",
+                vikriti_notes="Current Vata excess in joints (stiffness, cracking), nervous system (anxiety, light sleep), and colon (constipation, gas).",
+                chief_complaints=(
+                    "1. Joint stiffness in knees and fingers — worse in morning and cold weather.\n"
+                    "2. Mild anxiety — worry about health, family, future.\n"
+                    "3. Insomnia — wakes at 4-5 AM, cannot return to sleep.\n"
+                    "4. Dry, flaky skin — especially hands, elbows, and shins.\n"
+                    "5. Constipation — irregular bowel movements, hard stools every 2-3 days.\n"
+                    "6. Occasional tinnitus (ringing in ears)."
+                ),
+                medical_history="Mild osteoarthritis diagnosed 3 years ago. No surgeries. Family history of Type 2 diabetes.",
+                current_medications="Glucosamine supplement (OTC). Vitamin D 2000 IU daily.",
+                allergies="None known.",
+                nadi_notes="Vata nadi — thin, irregular, thread-like. Variable rate.",
+                jihwa_notes="Thin white coating. Slightly dry. Mild tremor.",
+                mutra_notes="Normal frequency but scanty volume. Clear to light yellow.",
+                mala_notes="Irregular — every 2-3 days. Hard, dry, pellet-like stools. Vata pattern.",
+            )
+            db.add(hp_arjun)
+            await db.flush()
+
+            tok_arjun = CheckInToken(patient_id=arjun.id)
+            db.add(tok_arjun)
+            await db.flush()
+
+            # Dosha assessment for Arjun
+            arjun_assessment = DoshaAssessment(
+                patient_id=arjun.id,
+                practitioner_id=practitioner.id,
+                prakriti_vata=9,
+                prakriti_pitta=5,
+                prakriti_kapha=6,
+                prakriti_responses={
+                    "body_frame": "vata", "body_weight": "vata", "skin": "vata",
+                    "hair": "vata", "eyes": "pitta", "appetite": "vata",
+                    "digestion": "vata", "thirst": "vata", "bowel_habits": "vata",
+                    "sleep": "vata", "dreams": "vata", "speech": "vata",
+                    "mental_activity": "vata", "memory": "vata", "emotions": "vata",
+                    "stress_response": "vata", "activity_level": "kapha",
+                    "temperature": "vata", "sweating": "kapha", "joints": "vata",
+                },
+                vikriti_vata=10,
+                vikriti_pitta=4,
+                vikriti_kapha=3,
+                vikriti_responses={
+                    "anxiety": 3, "insomnia": 2, "dry_skin": 3, "constipation": 3,
+                    "joint_pain": 2, "cold_hands": 2, "weight_loss": 1,
+                    "acid_reflux": 0, "inflammation": 1, "irritability": 0,
+                    "excessive_heat": 0, "loose_stools": 0, "burning_eyes": 0, "excessive_sweating": 0,
+                    "congestion": 0, "weight_gain": 0, "lethargy": 0,
+                    "excess_mucus": 0, "sluggish_digestion": 0, "depression": 1, "attachment": 0,
+                },
+                agni_type="Vishama Agni",
+                ama_level="Mild",
+                agni_responses={"appetite_pattern": "Vishama Agni", "post_meal": "Vishama Agni"},
+                ama_responses={"tongue_coating": 1, "body_odor": 0, "stool_quality": 2, "energy": 1},
+                ashtavidha_responses={
+                    "nadi": {"finding": "Thin, irregular, thread-like (Vata)", "notes": "Classic Vata nadi — serpentine, variable."},
+                    "jihwa": {"finding": "Thin white coating, dry (Vata)", "notes": "Dryness and thin coating indicate Vata in GI."},
+                    "mutra": {"finding": "Scanty, clear (Vata)", "notes": "Low volume, clear. Vata pattern."},
+                    "mala": {"finding": "Dry, hard, irregular (Vata)", "notes": "Hard pellet stools every 2-3 days. Classic Vata constipation."},
+                    "shabda": {"finding": "Soft, hesitant (Vata)", "notes": "Quiet voice, trails off mid-sentence occasionally."},
+                    "sparsha": {"finding": "Dry, rough, cool, thin (Vata)", "notes": "Cool dry skin, especially extremities."},
+                    "drika": {"finding": "Normal / mixed", "notes": "Slightly dull. No redness."},
+                    "akriti": {"finding": "Thin, light frame (Vata)", "notes": "Thin, angular frame. Visible joints."},
+                },
+                result_prakriti="Vata-Pitta",
+                result_vikriti="Vata",
+                notes="Significant Vata aggravation — joints, colon, nervous system. Priority: ground Vata with warm oil, warm food, regularity. Ashwagandha for nervous system. Triphala for bowel regularity. Sesame oil abhyanga.",
+            )
+            db.add(arjun_assessment)
+            await db.flush()
+
+            # Care plan for Arjun (4 weeks, started 10 days ago)
+            arjun_plan_start = date.today() - timedelta(days=10)
+            arjun_plan = ConsultationPlan(
+                patient_id=arjun.id,
+                title="Vata-Balancing Protocol — Arjun",
+                active=True,
+                duration_weeks=4,
+                start_date=arjun_plan_start,
+                foods_to_include=(
+                    "Warm, moist, cooked foods as primary diet. Favor sweet, sour, salty tastes.\n"
+                    "Ghee liberally — 1 tsp with each meal. Warm milk with nutmeg before bed.\n"
+                    "Soups, stews, khichdi, oatmeal, rice porridge.\n"
+                    "Cooked root vegetables: sweet potato, beets, carrots, pumpkin.\n"
+                    "Sesame oil for cooking. Almonds (soaked), dates, figs.\n"
+                    "Ginger tea throughout the day for Agni support."
+                ),
+                foods_to_avoid=(
+                    "Raw salads, cold foods, and iced beverages.\n"
+                    "Dry, crunchy snacks (crackers, chips, popcorn).\n"
+                    "Beans and legumes (except mung dal and red lentils).\n"
+                    "Excess bitter and astringent foods.\n"
+                    "Caffeine — aggravates Vata and anxiety.\n"
+                    "Frozen or leftover food."
+                ),
+                lifestyle_notes=(
+                    "Daily oil massage (Abhyanga) with warm sesame oil — 15 min before morning shower.\n"
+                    "Maintain strict daily routine (Dinacharya): wake, eat, sleep at same times.\n"
+                    "Evening wind-down: warm bath, gentle stretching, calming music.\n"
+                    "Avoid excessive travel, multitasking, or overstimulation.\n"
+                    "Gentle walking continues — avoid vigorous exercise."
+                ),
+                breathing_notes=(
+                    "Nadi Shodhana (alternate nostril breathing) — 5 minutes morning and evening.\n"
+                    "Calming, grounding practice. Do not rush.\n"
+                    "Follow with 2-3 minutes of quiet sitting."
+                ),
+                nasal_care_notes=(
+                    "Nasya: 2 drops warm sesame oil in each nostril every morning.\n"
+                    "Helps with Vata in head — supports against tinnitus and anxiety."
+                ),
+                followup_notes=(
+                    "Follow this protocol for 4 weeks. Monitor:\n"
+                    "• Joint stiffness — morning severity, range of motion\n"
+                    "• Bowel regularity — frequency, consistency\n"
+                    "• Sleep quality — waking time, restfulness\n"
+                    "• Anxiety levels — frequency of worry episodes\n\n"
+                    "Will reassess Agni, Ama, and joint comfort at 4-week mark."
+                ),
+            )
+            db.add(arjun_plan)
+            await db.flush()
+
+            # Ashwagandha supplement for Arjun
+            ashwagandha_data = {
+                "name": "Ashwagandha",
+                "name_sanskrit": "Ashwagandha (Withania somnifera)",
+                "category": "Nervine / Adaptogen",
+                "purpose": "Calms Vata in the nervous system. Supports sleep, reduces anxiety, strengthens joints and muscles. Classical Rasayana.",
+                "dosha_effect": "Reduces Vata and Kapha, may mildly increase Pitta in excess",
+                "typical_dose": "½ tsp powder or 1 capsule (500mg) twice daily",
+                "cautions": "Avoid in acute infections or high Ama. Use cautiously in high Pitta.",
+                "is_classical": True,
+            }
+            ashwagandha = await get_or_create_supplement(db, ashwagandha_data)
+            ps_ashwagandha = PlanSupplement(
+                plan_id=arjun_plan.id,
+                supplement_id=ashwagandha.id,
+                dose="½ tsp",
+                timing="After meals",
+                frequency="Twice daily",
+                special_notes="Calming adaptogen for Vata. Take with warm milk or ghee for best absorption.",
+            )
+            db.add(ps_ashwagandha)
+
+            # Triphala for Arjun
+            triphala_data = {
+                "name": "Triphala",
+                "name_sanskrit": "Triphala (Three Fruits)",
+                "category": "Digestive / Detox",
+                "purpose": "Gentle bowel regulator. Supports digestion and elimination without dependency. Classical Rasayana.",
+                "dosha_effect": "Balances all three doshas (Tridoshic)",
+                "typical_dose": "½ tsp powder at bedtime with warm water",
+                "cautions": "Reduce dose if loose stools occur. Avoid during pregnancy.",
+                "is_classical": True,
+            }
+            triphala = await get_or_create_supplement(db, triphala_data)
+            ps_triphala = PlanSupplement(
+                plan_id=arjun_plan.id,
+                supplement_id=triphala.id,
+                dose="½ tsp",
+                timing="Bedtime",
+                frequency="Once daily",
+                special_notes="Take with warm water before sleep. Helps regulate bowel movements gently.",
+            )
+            db.add(ps_triphala)
+            await db.flush()
+            print(f"Created care plan for Arjun: {arjun_plan.title}")
+
+            # 10 days of check-ins for Arjun
+            print("Creating 10 days of check-in history for Arjun...")
+            today = date.today()
+            for i in range(10, 0, -1):
+                checkin_date = today - timedelta(days=i)
+                # Gradual improvement over 10 days
+                progress = (10 - i) / 10.0  # 0.0 to 0.9
+                base_compliance = 0.60 + progress * 0.20  # 60% → 80%
+
+                def yn_a(prob: float) -> bool:
+                    return random.random() < prob
+
+                def score_a(base: float, noise: float = 0.7) -> int:
+                    raw = base + random.uniform(-noise, noise)
+                    return max(1, min(5, round(raw)))
+
+                base_scores = {
+                    "digestion": 2.3 + progress * 1.2,
+                    "urinary": 3.5 + progress * 0.3,
+                    "sinus": 3.8 + progress * 0.2,
+                    "energy": 2.0 + progress * 1.5,
+                }
+
+                if random.random() < 0.08:
+                    continue
+
+                ci = DailyCheckIn(
+                    patient_id=arjun.id,
+                    date=checkin_date,
+                    warm_water=yn_a(base_compliance + 0.15),
+                    breathing_exercise=yn_a(base_compliance + 0.05),
+                    nasal_oil=yn_a(base_compliance - 0.10),
+                    warm_breakfast=yn_a(base_compliance + 0.10),
+                    avoided_cold_food=yn_a(base_compliance + 0.15),
+                    avoided_yogurt=yn_a(base_compliance + 0.20),
+                    herbal_tea_am=yn_a(base_compliance + 0.10),
+                    warm_lunch=yn_a(base_compliance + 0.10),
+                    included_barley=yn_a(base_compliance - 0.15),
+                    no_cold_drinks=yn_a(base_compliance + 0.10),
+                    warm_dinner=yn_a(base_compliance + 0.05),
+                    dinner_before_8pm=yn_a(base_compliance + 0.10),
+                    supplements_am=yn_a(base_compliance + 0.10),
+                    supplements_pm=yn_a(base_compliance + 0.05),
+                    cardio_today=yn_a(0.7),
+                    consistent_sleep=yn_a(base_compliance - 0.05),
+                    digestion_score=score_a(base_scores["digestion"]),
+                    urinary_score=score_a(base_scores["urinary"]),
+                    sinus_score=score_a(base_scores["sinus"]),
+                    energy_score=score_a(base_scores["energy"]),
+                    notes=None,
+                )
+                db.add(ci)
+
+            await db.flush()
+            print("10-day check-in history created for Arjun.")
+
+            # Follow-up for Arjun
+            fu_arjun = FollowUp(
+                patient_id=arjun.id,
+                practitioner_id=practitioner.id,
+                scheduled_date=date.today() + timedelta(days=18),
+                reason="4-week Vata protocol review",
+                notes="Assess joint stiffness improvement, bowel regularity, sleep quality, anxiety levels. Consider adding Bala if joints still stiff.",
+            )
+            db.add(fu_arjun)
+            await db.flush()
+            print("Created Arjun Patel — Vata-Pitta, mid-treatment (10 days, active plan)")
+        else:
+            print(f"Patient Arjun already exists (id={arjun.id}), skipping.")
+
         await db.commit()
         print(f"\nDemo seed complete.")
         print(f"  Login:    {DEMO_EMAIL}")
         print(f"  Password: {DEMO_PASSWORD}")
-        print(f"  Patient:  Shuva Mukhopadhyay (full plan + 21-day history)")
+        print(f"  Patients: Shuva (21-day history), Priya (new intake), Arjun (10-day mid-treatment)")
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ import { useAuthStore } from "@/store/auth";
 import { patientsApi, followupsApi } from "@/lib/api/client";
 import { DoshaBadge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
+import AiDashboardSummary from "@/components/ai-dashboard-summary";
 
 type PatientSummary = {
   id: number;
@@ -73,6 +74,9 @@ export default function DashboardPage() {
           </div>
         ))}
       </div>
+
+      {/* AI Practice Overview */}
+      <AiDashboardSummary />
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Recent Patients */}
