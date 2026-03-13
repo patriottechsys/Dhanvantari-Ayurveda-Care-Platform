@@ -141,6 +141,16 @@ export const portalApi = {
   followups: (token: string)               => api.get(`/api/portal/${token}/followups`),
 };
 
+export const notesApi = {
+  list:    (patientId: number)                => api.get(`/api/patients/${patientId}/notes`),
+  get:     (patientId: number, noteId: number) => api.get(`/api/patients/${patientId}/notes/${noteId}`),
+  create:  (patientId: number, data: unknown)  => api.post(`/api/patients/${patientId}/notes`, data),
+  update:  (patientId: number, noteId: number, data: unknown) => api.patch(`/api/patients/${patientId}/notes/${noteId}`, data),
+  delete:  (patientId: number, noteId: number) => api.delete(`/api/patients/${patientId}/notes/${noteId}`),
+  send:    (patientId: number, noteId: number) => api.post(`/api/patients/${patientId}/notes/${noteId}/send`),
+  aiDraft: (patientId: number)                => api.post(`/api/patients/${patientId}/notes/ai-draft`, {}),
+};
+
 export const billingApi = {
   createCheckoutSession: (tier: string) => api.post("/api/billing/checkout", { tier }),
   createPortalSession:   ()             => api.post("/api/billing/portal"),

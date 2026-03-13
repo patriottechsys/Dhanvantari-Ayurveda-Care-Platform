@@ -4,9 +4,10 @@ from app.models.plan import ConsultationPlan, Supplement, PlanSupplement, Recipe
 from app.models.checkin import CheckInToken, DailyCheckIn
 from app.models.followup import FollowUp
 from app.models.billing import Subscription
+from app.models.consultation_note import ConsultationNote
 
 __all__ = [
     "Practitioner", "Patient", "HealthProfile",
     "ConsultationPlan", "Supplement", "PlanSupplement", "Recipe", "PlanRecipe",
-    "CheckInToken", "DailyCheckIn", "FollowUp", "Subscription",
+    "CheckInToken", "DailyCheckIn", "FollowUp", "Subscription", "ConsultationNote",
 ]

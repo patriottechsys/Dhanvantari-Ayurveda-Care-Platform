@@ -62,8 +62,9 @@ class Practitioner(Base):
     )
 
     # Relationships
-    patients:  Mapped[list["Patient"]]  = relationship(back_populates="practitioner", lazy="dynamic")  # noqa: F821
-    followups: Mapped[list["FollowUp"]] = relationship(back_populates="practitioner", lazy="dynamic")  # noqa: F821
+    patients:           Mapped[list["Patient"]]           = relationship(back_populates="practitioner", lazy="dynamic")  # noqa: F821
+    followups:          Mapped[list["FollowUp"]]          = relationship(back_populates="practitioner", lazy="dynamic")  # noqa: F821
+    consultation_notes: Mapped[list["ConsultationNote"]]  = relationship(back_populates="practitioner", lazy="dynamic")  # noqa: F821
 
     @property
     def can_add_patient(self) -> bool:

@@ -4,8 +4,8 @@ import { useState } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, ExternalLink, Save } from "lucide-react";
-import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi } from "@/lib/api/client";
+import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2 } from "lucide-react";
+import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -15,7 +15,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Badge, DoshaBadge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
-type Tab = "overview" | "plan" | "checkins" | "followups";
+type Tab = "overview" | "plan" | "checkins" | "followups" | "notes";
 
 const PORTAL_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(":8747", ":3747") ?? "http://localhost:3747";
 
@@ -50,6 +50,92 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     queryFn: () => followupsApi.list({ patient_id: patientId }).then((r) => r.data),
     enabled: tab === "followups",
   });
+
+  const { data: notes = [], refetch: refetchNotes } = useQuery({
+    queryKey: ["patient-notes", patientId],
+    queryFn: () => notesApi.list(patientId).then((r) => r.data),
+    enabled: tab === "notes",
+  });
+
+  // ── Notes state ─────────────────────────────────────────────────────────
+  const [viewingNote, setViewingNote] = useState<Record<string, unknown> | null>(null);
+  const [editingNote, setEditingNote] = useState<Record<string, string> | null>(null);
+  const [editingNoteId, setEditingNoteId] = useState<number | null>(null);
+  const [aiDrafting, setAiDrafting] = useState(false);
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [noteSending, setNoteSending] = useState(false);
+
+  const NOTE_SECTIONS = [
+    { key: "greeting", label: "Greeting" },
+    { key: "primary_concerns", label: "Primary Concerns" },
+    { key: "health_history", label: "Health History & Context" },
+    { key: "dietary_plan", label: "Dietary Plan" },
+    { key: "lifestyle_plan", label: "Lifestyle & Routine" },
+    { key: "supplements_plan", label: "Supplements" },
+    { key: "emotional_wellbeing", label: "Emotional Wellbeing" },
+    { key: "next_steps", label: "Next Steps" },
+    { key: "custom_recipes", label: "Recipes & Preparations" },
+    { key: "additional_notes", label: "Additional Notes" },
+    { key: "closing", label: "Closing" },
+  ];
+
+  async function handleAiDraft() {
+    setAiDrafting(true);
+    try {
+      const { data } = await notesApi.aiDraft(patientId);
+      const draft = data.draft;
+      setEditingNote({
+        title: draft.title || "",
+        greeting: draft.greeting || "",
+        primary_concerns: draft.primary_concerns || "",
+        health_history: draft.health_history || "",
+        dietary_plan: draft.dietary_plan || "",
+        lifestyle_plan: draft.lifestyle_plan || "",
+        supplements_plan: draft.supplements_plan || "",
+        emotional_wellbeing: draft.emotional_wellbeing || "",
+        next_steps: draft.next_steps || "",
+        custom_recipes: draft.custom_recipes || "",
+        additional_notes: draft.additional_notes || "",
+        closing: draft.closing || "",
+      });
+      setEditingNoteId(null);
+    } catch {
+      alert("Failed to generate AI draft. Please try again.");
+    } finally {
+      setAiDrafting(false);
+    }
+  }
+
+  async function handleSaveNote() {
+    if (!editingNote) return;
+    setNoteSaving(true);
+    try {
+      if (editingNoteId) {
+        await notesApi.update(patientId, editingNoteId, editingNote);
+      } else {
+        await notesApi.create(patientId, { ...editingNote, patient_id: patientId });
+      }
+      setEditingNote(null);
+      setEditingNoteId(null);
+      refetchNotes();
+    } catch {
+      alert("Failed to save note.");
+    } finally {
+      setNoteSaving(false);
+    }
+  }
+
+  async function handleSendNote(noteId: number) {
+    setNoteSending(true);
+    try {
+      await notesApi.send(patientId, noteId);
+      refetchNotes();
+    } catch {
+      alert("Failed to send note.");
+    } finally {
+      setNoteSending(false);
+    }
+  }
 
   // ── Plan editor state ─────────────────────────────────────────────────────
   const [planEdits, setPlanEdits] = useState<Record<string, string>>({});
@@ -136,6 +222,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const TABS: { id: Tab; label: string }[] = [
     { id: "overview", label: "Overview" },
     { id: "plan", label: "Care Plan" },
+    { id: "notes", label: "Notes" },
     { id: "checkins", label: "Check-ins" },
     { id: "followups", label: "Follow-ups" },
   ];
@@ -441,6 +528,182 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                   </tbody>
                 </table>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Notes ────────────────────────────────────────────────────── */}
+        {tab === "notes" && (
+          <div className="max-w-3xl space-y-4">
+            {/* Viewing a single note */}
+            {viewingNote && !editingNote ? (
+              <div className="space-y-4">
+                <button
+                  onClick={() => setViewingNote(null)}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="size-3.5" /> Back to notes
+                </button>
+                <div className="rounded-xl border bg-card p-6 space-y-5">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">{viewingNote.title as string}</h2>
+                    <div className="flex items-center gap-2">
+                      {!(viewingNote.sent as boolean) && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              const noteData: Record<string, string> = { title: (viewingNote.title as string) || "" };
+                              NOTE_SECTIONS.forEach(({ key }) => {
+                                noteData[key] = (viewingNote[key] as string) || "";
+                              });
+                              setEditingNote(noteData);
+                              setEditingNoteId(viewingNote.id as number);
+                            }}
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="gap-1.5"
+                            disabled={noteSending}
+                            onClick={() => handleSendNote(viewingNote.id as number)}
+                          >
+                            <Send className="size-3.5" />
+                            {noteSending ? "Sending..." : "Send to Patient"}
+                          </Button>
+                        </>
+                      )}
+                      {(viewingNote.sent as boolean) && (
+                        <Badge variant="success">Sent {viewingNote.sent_at ? new Date(viewingNote.sent_at as string).toLocaleDateString() : ""}</Badge>
+                      )}
+                    </div>
+                  </div>
+                  {NOTE_SECTIONS.map(({ key, label }) => {
+                    const val = viewingNote[key] as string | null;
+                    if (!val) return null;
+                    return (
+                      <div key={key}>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{val}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : editingNote ? (
+              /* Editing / creating a note */
+              <div className="space-y-4">
+                <button
+                  onClick={() => { setEditingNote(null); setEditingNoteId(null); }}
+                  className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  <ChevronLeft className="size-3.5" /> Cancel
+                </button>
+                <div className="rounded-xl border bg-card p-6 space-y-4">
+                  <div className="space-y-1.5">
+                    <Label>Title *</Label>
+                    <Input
+                      value={editingNote.title || ""}
+                      onChange={(e) => setEditingNote((prev) => prev ? { ...prev, title: e.target.value } : prev)}
+                      placeholder="e.g. Initial Consultation — 2-Month Support Plan"
+                    />
+                  </div>
+                  {NOTE_SECTIONS.map(({ key, label }) => (
+                    <div key={key} className="space-y-1.5">
+                      <Label>{label}</Label>
+                      <Textarea
+                        rows={key === "dietary_plan" || key === "custom_recipes" || key === "next_steps" ? 6 : 3}
+                        value={editingNote[key] || ""}
+                        onChange={(e) => setEditingNote((prev) => prev ? { ...prev, [key]: e.target.value } : prev)}
+                        placeholder={`Enter ${label.toLowerCase()}...`}
+                      />
+                    </div>
+                  ))}
+                  <div className="flex justify-end gap-3 pt-2">
+                    <Button variant="outline" onClick={() => { setEditingNote(null); setEditingNoteId(null); }}>
+                      Cancel
+                    </Button>
+                    <Button disabled={noteSaving || !editingNote.title} onClick={handleSaveNote}>
+                      {noteSaving ? "Saving..." : editingNoteId ? "Update Note" : "Save Note"}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Notes list */
+              <>
+                <div className="flex items-center justify-between">
+                  <h2 className="font-medium text-sm text-muted-foreground">Consultation Notes ({notes.length})</h2>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
+                      disabled={aiDrafting}
+                      onClick={handleAiDraft}
+                    >
+                      <Sparkles className="size-3.5" />
+                      {aiDrafting ? "Generating..." : "AI Draft"}
+                    </Button>
+                    <Button
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => {
+                        setEditingNote({ title: "", greeting: "", primary_concerns: "", health_history: "", dietary_plan: "", lifestyle_plan: "", supplements_plan: "", emotional_wellbeing: "", next_steps: "", custom_recipes: "", additional_notes: "", closing: "" });
+                        setEditingNoteId(null);
+                      }}
+                    >
+                      <Plus className="size-3.5" /> New Note
+                    </Button>
+                  </div>
+                </div>
+                {aiDrafting && (
+                  <div className="rounded-xl border bg-card p-8 text-center space-y-3">
+                    <Loader2 className="size-6 text-primary animate-spin mx-auto" />
+                    <p className="text-sm text-muted-foreground">Analyzing patient profile, care plan, and check-in history...</p>
+                    <p className="text-xs text-muted-foreground">Generating a structured consultation note with AI</p>
+                  </div>
+                )}
+                {notes.length === 0 && !aiDrafting ? (
+                  <div className="rounded-xl border bg-card p-8 text-center space-y-3">
+                    <FileText className="size-8 text-muted-foreground mx-auto" />
+                    <p className="text-sm text-muted-foreground">No consultation notes yet.</p>
+                    <p className="text-xs text-muted-foreground">Create a new note manually or use AI to draft one from the patient&apos;s profile.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {notes.map((n: { id: number; title: string; sent: boolean; sent_at?: string; created_at: string; primary_concerns?: string }) => (
+                      <button
+                        key={n.id}
+                        onClick={() => setViewingNote(n)}
+                        className="w-full text-left rounded-xl border bg-card p-4 hover:border-primary/40 transition-colors"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <FileText className="size-4 text-muted-foreground shrink-0" />
+                            <div className="min-w-0">
+                              <p className="font-medium text-sm truncate">{n.title}</p>
+                              <p className="text-xs text-muted-foreground">
+                                {new Date(n.created_at).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                              </p>
+                            </div>
+                          </div>
+                          {n.sent ? (
+                            <Badge variant="success" className="shrink-0">Sent</Badge>
+                          ) : (
+                            <Badge variant="secondary" className="shrink-0">Draft</Badge>
+                          )}
+                        </div>
+                        {n.primary_concerns && (
+                          <p className="text-xs text-muted-foreground mt-2 line-clamp-2 pl-7">{n.primary_concerns}</p>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
