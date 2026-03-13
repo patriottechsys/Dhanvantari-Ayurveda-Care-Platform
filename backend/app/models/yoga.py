@@ -72,6 +72,11 @@ class PlanYogaAsana(Base):
     plan_id:   Mapped[int] = mapped_column(ForeignKey("consultation_plans.id"), nullable=False, index=True)
     asana_id:  Mapped[int] = mapped_column(ForeignKey("yoga_asanas.id"), nullable=False)
     frequency: Mapped[str | None] = mapped_column(String(100))     # "Daily", "3x per week"
+    duration:  Mapped[str | None] = mapped_column(String(100))     # "10 minutes", "5-10 breaths"
+    hold_time: Mapped[str | None] = mapped_column(String(100))     # "30 seconds", "1 minute each side"
+    repetitions:      Mapped[str | None] = mapped_column(String(100))  # "3 sets of 5"
+    practice_time:    Mapped[str | None] = mapped_column(String(100))  # "Morning", "Before bed"
+    include_video_link: Mapped[bool]     = mapped_column(Boolean, default=False)
     notes:     Mapped[str | None] = mapped_column(Text)
 
     plan:  Mapped["ConsultationPlan"] = relationship()  # noqa: F821

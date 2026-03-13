@@ -79,6 +79,11 @@ class VideoUpdate(BaseModel):
 class PlanYogaCreate(BaseModel):
     asana_id: int
     frequency: str | None = None
+    duration: str | None = None
+    hold_time: str | None = None
+    repetitions: str | None = None
+    practice_time: str | None = None
+    include_video_link: bool = False
     notes: str | None = None
 
 
@@ -328,6 +333,11 @@ async def list_plan_yoga(
             "plan_id": item.plan_id,
             "asana_id": item.asana_id,
             "frequency": item.frequency,
+            "duration": item.duration,
+            "hold_time": item.hold_time,
+            "repetitions": item.repetitions,
+            "practice_time": item.practice_time,
+            "include_video_link": item.include_video_link,
             "notes": item.notes,
             "asana": _asana_dict(asana) if asana else None,
         })

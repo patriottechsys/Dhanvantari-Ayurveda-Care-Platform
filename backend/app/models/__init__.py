@@ -7,6 +7,7 @@ from app.models.billing import Subscription
 from app.models.consultation_note import ConsultationNote
 from app.models.dosha_assessment import DoshaAssessment
 from app.models.yoga import YogaAsana, VideoReference, PlanYogaAsana
+from app.models.pranayama import Pranayama, PlanPranayama
 
 __all__ = [
     "Practitioner", "Patient", "HealthProfile",
@@ -14,4 +15,5 @@ __all__ = [
     "CheckInToken", "DailyCheckIn", "FollowUp", "Subscription", "ConsultationNote",
     "DoshaAssessment",
     "YogaAsana", "VideoReference", "PlanYogaAsana",
+    "Pranayama", "PlanPranayama",
 ]

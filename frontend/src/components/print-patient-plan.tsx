@@ -39,10 +39,27 @@ interface PatientInfo {
   portal_token?: string;
 }
 
+interface PranayamaAssignment {
+  id: number;
+  pranayama_id: number;
+  duration?: string | null;
+  rounds?: string | null;
+  frequency?: string | null;
+  practice_time?: string | null;
+  notes?: string | null;
+  pranayama?: {
+    name: string;
+    name_sanskrit?: string | null;
+    category?: string | null;
+    difficulty?: string | null;
+  } | null;
+}
+
 interface PrintPatientPlanProps {
   patient: PatientInfo;
   plan: PlanData;
   yogaAssignments: YogaAssignment[];
+  pranayamaAssignments?: PranayamaAssignment[];
   onClose: () => void;
 }
 
@@ -55,7 +72,7 @@ function QRCodeSVG({ value, size = 100 }: { value: string; size?: number }) {
   return <img src={qrUrl} alt="QR Code" width={size} height={size} className="rounded" />;
 }
 
-export default function PrintPatientPlan({ patient, plan, yogaAssignments, onClose }: PrintPatientPlanProps) {
+export default function PrintPatientPlan({ patient, plan, yogaAssignments, pranayamaAssignments = [], onClose }: PrintPatientPlanProps) {
   const printRef = useRef<HTMLDivElement>(null);
 
   function handlePrint() {
@@ -239,6 +256,40 @@ export default function PrintPatientPlan({ patient, plan, yogaAssignments, onClo
                       <td className="py-1.5 pr-3 text-gray-600">{y.asana?.level || "—"}</td>
                       <td className="py-1.5 pr-3 text-gray-600">{y.asana?.hold_duration || "—"}</td>
                       <td className="py-1.5 text-gray-600">{y.frequency || "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pranayama */}
+          {pranayamaAssignments.length > 0 && (
+            <div className="space-y-2">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-gray-700 border-b border-gray-200 pb-1">
+                Pranayama ({pranayamaAssignments.length})
+              </h2>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-xs text-gray-500 border-b">
+                    <th className="pb-1.5 pr-3">Exercise</th>
+                    <th className="pb-1.5 pr-3">Duration</th>
+                    <th className="pb-1.5 pr-3">Rounds</th>
+                    <th className="pb-1.5 pr-3">Frequency</th>
+                    <th className="pb-1.5">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {pranayamaAssignments.map((p) => (
+                    <tr key={p.id}>
+                      <td className="py-1.5 pr-3">
+                        <span className="font-medium">{p.pranayama?.name ?? `Exercise #${p.pranayama_id}`}</span>
+                        {p.pranayama?.name_sanskrit && <span className="text-gray-500 italic ml-1">({p.pranayama.name_sanskrit})</span>}
+                      </td>
+                      <td className="py-1.5 pr-3 text-gray-600">{p.duration || "—"}</td>
+                      <td className="py-1.5 pr-3 text-gray-600">{p.rounds || "—"}</td>
+                      <td className="py-1.5 pr-3 text-gray-600">{p.frequency || "—"}</td>
+                      <td className="py-1.5 text-gray-600">{p.practice_time || "—"}</td>
                     </tr>
                   ))}
                 </tbody>

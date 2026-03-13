@@ -4,8 +4,8 @@ import { useState } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding, Printer } from "lucide-react";
-import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi, yogaApi, planYogaApi } from "@/lib/api/client";
+import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding, Printer, Wind } from "lucide-react";
+import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi, yogaApi, planYogaApi, pranayamaApi, planPranayamaApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -185,6 +185,10 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [yogaSearch, setYogaSearch] = useState("");
   const [showPrint, setShowPrint] = useState(false);
 
+  // ── Pranayama assignment (backend-powered) ────────────────────────────
+  const [addPranayamaOpen, setAddPranayamaOpen] = useState(false);
+  const [pranayamaSearch, setPranayamaSearch] = useState("");
+
   const { data: yogaLib = [] } = useQuery({
     queryKey: ["yoga-lib", yogaSearch],
     queryFn: () => yogaApi.list({ search: yogaSearch || undefined }).then((r) => r.data),
@@ -194,6 +198,18 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const { data: assignedYogaRaw = [] } = useQuery({
     queryKey: ["plan-yoga", plan?.id],
     queryFn: () => planYogaApi.list(plan.id).then((r) => r.data),
+    enabled: !!plan?.id && (tab === "plan" || tab === "overview"),
+  });
+
+  const { data: pranayamaLib = [] } = useQuery({
+    queryKey: ["pranayama-lib", pranayamaSearch],
+    queryFn: () => pranayamaApi.list({ search: pranayamaSearch || undefined }).then((r) => r.data),
+    enabled: addPranayamaOpen,
+  });
+
+  const { data: assignedPranayamaRaw = [] } = useQuery({
+    queryKey: ["plan-pranayama", plan?.id],
+    queryFn: () => planPranayamaApi.list(plan.id).then((r) => r.data),
     enabled: !!plan?.id && (tab === "plan" || tab === "overview"),
   });
 
@@ -263,6 +279,20 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const removeYogaMutation = useMutation({
     mutationFn: (assignmentId: number) => planYogaApi.remove(plan.id, assignmentId),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-yoga", plan?.id] }),
+  });
+
+  const addPranayamaMutation = useMutation({
+    mutationFn: (pranayamaId: number) =>
+      planPranayamaApi.assign(plan.id, { pranayama_id: pranayamaId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] });
+      setAddPranayamaOpen(false);
+    },
+  });
+
+  const removePranayamaMutation = useMutation({
+    mutationFn: (assignmentId: number) => planPranayamaApi.remove(plan.id, assignmentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] }),
   });
 
   const addFollowupMutation = useMutation({
@@ -947,7 +977,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                     <p className="text-sm text-muted-foreground">No yoga asanas assigned yet.</p>
                   )}
                   <div className="space-y-2">
-                    {assignedYogaRaw.map((y: { id: number; asana_id: number; frequency: string | null; notes: string | null; asana: { name: string; name_sanskrit: string | null; level: string | null; hold_duration: string | null } | null }) => (
+                    {assignedYogaRaw.map((y: { id: number; asana_id: number; frequency: string | null; duration: string | null; hold_time: string | null; repetitions: string | null; practice_time: string | null; include_video_link: boolean; notes: string | null; asana: { name: string; name_sanskrit: string | null; level: string | null; hold_duration: string | null } | null }) => (
                       <div key={y.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
                         <div className="flex-1 min-w-0">
                           <p className="font-medium truncate">{y.asana?.name ?? `Asana #${y.asana_id}`}</p>
@@ -955,10 +985,51 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                           <p className="text-xs text-muted-foreground">
                             {y.asana?.level}{y.asana?.hold_duration && ` · ${y.asana.hold_duration}`}
                             {y.frequency && ` · ${y.frequency}`}
+                            {y.duration && ` · ${y.duration}`}
+                            {y.practice_time && ` · ${y.practice_time}`}
                           </p>
                         </div>
                         <button
                           onClick={() => removeYogaMutation.mutate(y.id)}
+                          className="text-muted-foreground hover:text-destructive transition-colors"
+                        >
+                          <Trash2 className="size-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Pranayama */}
+                <div className="rounded-xl border bg-card p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-sm flex items-center gap-1.5">
+                      <Wind className="size-4" />
+                      Pranayama ({assignedPranayamaRaw.length})
+                    </h3>
+                    <Button size="sm" variant="outline" onClick={() => setAddPranayamaOpen(true)} className="gap-1.5">
+                      <Plus className="size-3.5" /> Add
+                    </Button>
+                  </div>
+                  {assignedPranayamaRaw.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No pranayama exercises assigned yet.</p>
+                  )}
+                  <div className="space-y-2">
+                    {assignedPranayamaRaw.map((p: { id: number; pranayama_id: number; duration: string | null; rounds: string | null; frequency: string | null; practice_time: string | null; notes: string | null; pranayama: { name: string; name_sanskrit: string | null; category: string | null; difficulty: string | null } | null }) => (
+                      <div key={p.id} className="flex items-center gap-3 rounded-lg border px-3 py-2.5 text-sm">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{p.pranayama?.name ?? `Exercise #${p.pranayama_id}`}</p>
+                          {p.pranayama?.name_sanskrit && <p className="text-xs text-muted-foreground italic">{p.pranayama.name_sanskrit}</p>}
+                          <p className="text-xs text-muted-foreground">
+                            {p.pranayama?.difficulty}{p.pranayama?.category && ` · ${p.pranayama.category}`}
+                            {p.frequency && ` · ${p.frequency}`}
+                            {p.duration && ` · ${p.duration}`}
+                            {p.practice_time && ` · ${p.practice_time}`}
+                            {p.rounds && ` · ${p.rounds}`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => removePranayamaMutation.mutate(p.id)}
                           className="text-muted-foreground hover:text-destructive transition-colors"
                         >
                           <Trash2 className="size-3.5" />
@@ -1340,6 +1411,32 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </div>
       </Dialog>
 
+      {/* Add Pranayama */}
+      <Dialog open={addPranayamaOpen} onClose={() => setAddPranayamaOpen(false)} title="Add Pranayama Exercise" className="max-w-lg">
+        <div className="space-y-3">
+          <Input placeholder="Search pranayama exercises…" value={pranayamaSearch} onChange={(e) => setPranayamaSearch(e.target.value)} />
+          <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
+            {pranayamaLib
+              .filter((p: { id: number }) => !assignedPranayamaRaw.some((a: { pranayama_id: number }) => a.pranayama_id === p.id))
+              .map((p: { id: number; name: string; name_sanskrit: string | null; category: string | null; difficulty: string | null; dosha_effect: string | null; duration_range: string | null }) => (
+                <button
+                  key={p.id}
+                  onClick={() => addPranayamaMutation.mutate(p.id)}
+                  className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                >
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {p.name_sanskrit}{p.category && ` · ${p.category}`}{p.difficulty && ` · ${p.difficulty}`}{p.dosha_effect && ` · ${p.dosha_effect}`}
+                  </p>
+                </button>
+              ))}
+            {pranayamaLib.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No pranayama exercises found. Add exercises to the library first.</p>
+            )}
+          </div>
+        </div>
+      </Dialog>
+
       {/* New Follow-up */}
       <Dialog open={newFollowupOpen} onClose={() => setNewFollowupOpen(false)} title="Schedule Follow-up">
         <form
@@ -1388,6 +1485,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             patient={patient}
             plan={plan}
             yogaAssignments={assignedYogaRaw}
+            pranayamaAssignments={assignedPranayamaRaw}
             onClose={() => setShowPrint(false)}
           />
         </div>

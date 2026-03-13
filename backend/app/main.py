@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.core.config import settings
 from app.core.database import engine, Base
-from app.api.routes import auth, practitioners, patients, plans, checkins, portal, ai, billing, supplements, recipes, followups, consultation_notes, assessments, yoga
+from app.api.routes import auth, practitioners, patients, plans, checkins, portal, ai, billing, supplements, recipes, followups, consultation_notes, assessments, yoga, pranayama
 
 
 @asynccontextmanager
@@ -59,6 +59,8 @@ app.include_router(assessments.router,        prefix="/api/patients", tags=["ass
 app.include_router(yoga.router,              prefix="/api/yoga-asanas", tags=["yoga"])
 app.include_router(yoga.video_router,        prefix="/api/videos",      tags=["videos"])
 app.include_router(yoga.plan_yoga_router,    prefix="/api/plans",       tags=["plan-yoga"])
+app.include_router(pranayama.router,             prefix="/api/pranayama",   tags=["pranayama"])
+app.include_router(pranayama.plan_pranayama_router, prefix="/api/plans",   tags=["plan-pranayama"])
 
 
 @app.get("/api/health")

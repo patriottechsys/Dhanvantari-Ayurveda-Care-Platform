@@ -193,6 +193,21 @@ export const planYogaApi = {
   remove: (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/yoga/${assignmentId}`),
 };
 
+export const pranayamaApi = {
+  list:   (params?: { search?: string; category?: string; difficulty?: string; dosha?: string }) =>
+    api.get("/api/pranayama", { params }),
+  get:    (id: number)                => api.get(`/api/pranayama/${id}`),
+  create: (data: unknown)             => api.post("/api/pranayama", data),
+  update: (id: number, data: unknown) => api.patch(`/api/pranayama/${id}`, data),
+  delete: (id: number)                => api.delete(`/api/pranayama/${id}`),
+};
+
+export const planPranayamaApi = {
+  list:   (planId: number)                => api.get(`/api/plans/${planId}/pranayama`),
+  assign: (planId: number, data: unknown) => api.post(`/api/plans/${planId}/pranayama`, data),
+  remove: (planId: number, assignmentId: number) => api.delete(`/api/plans/${planId}/pranayama/${assignmentId}`),
+};
+
 export const billingApi = {
   createCheckoutSession: (tier: string) => api.post("/api/billing/checkout", { tier }),
   createPortalSession:   ()             => api.post("/api/billing/portal"),
