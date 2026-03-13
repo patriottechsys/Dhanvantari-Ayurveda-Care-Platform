@@ -5,6 +5,8 @@ import { Search, Clock, Wind, Flame, Droplets, Zap, Heart, Moon, Sun } from "luc
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { VideoPlayerModal, VideoThumbnail } from "@/components/video-player-modal";
+import type { VideoReference } from "@/lib/video-helpers";
 
 type Pranayama = {
   id: number;
@@ -20,6 +22,7 @@ type Pranayama = {
   contraindications?: string;
   best_time?: string;
   icon: "wind" | "flame" | "droplets" | "zap" | "heart" | "moon" | "sun";
+  videos?: VideoReference[];
 };
 
 const ICON_MAP = {
@@ -270,6 +273,66 @@ const PRANAYAMA_DATA: Pranayama[] = [
   },
 ];
 
+// Sample video references for pranayama exercises
+const PRANAYAMA_VIDEOS: Record<number, VideoReference[]> = {
+  1: [
+    {
+      id: "pv1",
+      title: "Nadi Shodhana — Alternate Nostril Breathing Tutorial",
+      url: "https://www.youtube.com/watch?v=8VwufJrUhic",
+      platform: "youtube",
+      embedUrl: "https://www.youtube.com/embed/8VwufJrUhic",
+      thumbnailUrl: "https://img.youtube.com/vi/8VwufJrUhic/hqdefault.jpg",
+      durationDisplay: "10:15",
+      language: "English",
+      sourceName: "Yoga With Adriene",
+      isPrimary: true,
+    },
+  ],
+  2: [
+    {
+      id: "pv2",
+      title: "Kapalabhati Pranayama — Skull Shining Breath Guide",
+      url: "https://www.youtube.com/watch?v=aaGLCRCpras",
+      platform: "youtube",
+      embedUrl: "https://www.youtube.com/embed/aaGLCRCpras",
+      thumbnailUrl: "https://img.youtube.com/vi/aaGLCRCpras/hqdefault.jpg",
+      durationDisplay: "7:42",
+      language: "English",
+      sourceName: "Breath Is Life",
+      isPrimary: true,
+    },
+  ],
+  3: [
+    {
+      id: "pv3",
+      title: "Ujjayi Breathing — Ocean Breath for Yoga",
+      url: "https://www.youtube.com/watch?v=IFbnmtOJmgc",
+      platform: "youtube",
+      embedUrl: "https://www.youtube.com/embed/IFbnmtOJmgc",
+      thumbnailUrl: "https://img.youtube.com/vi/IFbnmtOJmgc/hqdefault.jpg",
+      durationDisplay: "5:30",
+      language: "English",
+      sourceName: "Yoga With Adriene",
+      isPrimary: true,
+    },
+  ],
+  6: [
+    {
+      id: "pv4",
+      title: "Bhramari Pranayama — Humming Bee Breath",
+      url: "https://www.youtube.com/watch?v=ixnHMFBMW0E",
+      platform: "youtube",
+      embedUrl: "https://www.youtube.com/embed/ixnHMFBMW0E",
+      thumbnailUrl: "https://img.youtube.com/vi/ixnHMFBMW0E/hqdefault.jpg",
+      durationDisplay: "6:18",
+      language: "English",
+      sourceName: "Yoga International",
+      isPrimary: true,
+    },
+  ],
+};
+
 const CATEGORIES = ["All", "Balancing", "Calming", "Energizing", "Cooling"];
 const DIFFICULTIES = ["All", "Beginner", "Intermediate", "Advanced"];
 
@@ -284,6 +347,7 @@ export default function PranayamaPage() {
   const [category, setCategory] = useState("All");
   const [difficulty, setDifficulty] = useState("All");
   const [expanded, setExpanded] = useState<number | null>(null);
+  const [activeVideo, setActiveVideo] = useState<VideoReference | null>(null);
 
   const filtered = PRANAYAMA_DATA.filter((p) => {
     const matchesSearch =
@@ -372,6 +436,22 @@ export default function PranayamaPage() {
               {/* Dosha effect */}
               <p className="text-xs text-muted-foreground">{p.dosha_effect}</p>
 
+              {/* Video indicator */}
+              {PRANAYAMA_VIDEOS[p.id] && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setActiveVideo(PRANAYAMA_VIDEOS[p.id][0]);
+                  }}
+                  className="flex items-center gap-1 text-xs text-primary hover:text-primary/80 transition-colors"
+                >
+                  <span className="size-3.5 rounded-full bg-primary/15 flex items-center justify-center">
+                    <span className="border-l-[5px] border-l-primary border-y-[3px] border-y-transparent ml-0.5 size-0" />
+                  </span>
+                  {PRANAYAMA_VIDEOS[p.id].length} video{PRANAYAMA_VIDEOS[p.id].length > 1 ? "s" : ""}
+                </button>
+              )}
+
               {/* Expanded content */}
               {isOpen && (
                 <div className="pt-3 border-t space-y-3 text-sm">
@@ -414,6 +494,22 @@ export default function PranayamaPage() {
                       <p className="text-xs text-amber-700">{p.contraindications}</p>
                     </div>
                   )}
+
+                  {/* Videos section in expanded view */}
+                  {PRANAYAMA_VIDEOS[p.id] && PRANAYAMA_VIDEOS[p.id].length > 0 && (
+                    <div>
+                      <p className="font-medium text-xs mb-2">Videos</p>
+                      <div className="grid grid-cols-2 gap-2">
+                        {PRANAYAMA_VIDEOS[p.id].map((v) => (
+                          <VideoThumbnail
+                            key={v.id}
+                            video={v}
+                            onClick={() => setActiveVideo(v)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -425,6 +521,9 @@ export default function PranayamaPage() {
           </div>
         )}
       </div>
+
+      {/* Video Player Modal */}
+      <VideoPlayerModal video={activeVideo} onClose={() => setActiveVideo(null)} />
     </div>
   );
 }
