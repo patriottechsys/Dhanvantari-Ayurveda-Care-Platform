@@ -4,7 +4,7 @@ import { useState } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding, Printer } from "lucide-react";
 import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi, yogaApi, planYogaApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,8 @@ import { cn } from "@/lib/utils";
 import DoshaAssessmentWizard from "@/components/dosha-assessment-wizard";
 import DoshaRadarChart from "@/components/dosha-radar-chart";
 import AiInsightsCard from "@/components/ai-insights-card";
+import dynamic from "next/dynamic";
+const PrintPatientPlan = dynamic(() => import("@/components/print-patient-plan"), { ssr: false });
 
 type Tab = "overview" | "plan" | "checkins" | "followups" | "notes" | "assessment";
 
@@ -181,6 +183,7 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   // ── Yoga assignment (backend-powered) ──────────────────────────────────
   const [addYogaOpen, setAddYogaOpen] = useState(false);
   const [yogaSearch, setYogaSearch] = useState("");
+  const [showPrint, setShowPrint] = useState(false);
 
   const { data: yogaLib = [] } = useQuery({
     queryKey: ["yoga-lib", yogaSearch],
@@ -810,6 +813,15 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                       size="sm"
                       variant="outline"
                       className="gap-1.5"
+                      onClick={() => setShowPrint(true)}
+                    >
+                      <Printer className="size-3.5" />
+                      Print
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="gap-1.5"
                       disabled={aiDraftPlanLoading}
                       onClick={async () => {
                         setAiDraftPlanLoading(true);
@@ -1368,6 +1380,18 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
           </div>
         </form>
       </Dialog>
+
+      {/* Print / Export View */}
+      {showPrint && plan && (
+        <div className="fixed inset-0 z-50 bg-white overflow-y-auto print-container">
+          <PrintPatientPlan
+            patient={patient}
+            plan={plan}
+            yogaAssignments={assignedYogaRaw}
+            onClose={() => setShowPrint(false)}
+          />
+        </div>
+      )}
     </div>
   );
 }

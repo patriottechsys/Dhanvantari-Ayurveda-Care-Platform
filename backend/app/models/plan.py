@@ -52,6 +52,7 @@ class Supplement(Base):
     typical_dose: Mapped[str | None] = mapped_column(String(200))   # Standard dosing range
     cautions:    Mapped[str | None] = mapped_column(Text)
     contraindications: Mapped[str | None] = mapped_column(Text)
+    image_url:   Mapped[str | None] = mapped_column(String(500))    # uploaded image path
     source_url:  Mapped[str | None] = mapped_column(String(500))
     notes:       Mapped[str | None] = mapped_column(Text)
     is_classical: Mapped[bool]     = mapped_column(Boolean, default=False)  # classical formula vs modern brand

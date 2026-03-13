@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from pydantic import BaseModel
 
 from app.core.config import settings
@@ -52,7 +53,9 @@ async def chat(
 
     if body.patient_id:
         result = await db.execute(
-            select(Patient).where(Patient.id == body.patient_id, Patient.practitioner_id == current.id)
+            select(Patient)
+            .options(selectinload(Patient.health_profile))
+            .where(Patient.id == body.patient_id, Patient.practitioner_id == current.id)
         )
         patient = result.scalar_one_or_none()
         if patient:
@@ -103,7 +106,9 @@ async def draft_plan(
         raise HTTPException(status_code=503, detail="ANTHROPIC_API_KEY not configured")
 
     result = await db.execute(
-        select(Patient).where(Patient.id == patient_id, Patient.practitioner_id == current.id)
+        select(Patient)
+        .options(selectinload(Patient.health_profile))
+        .where(Patient.id == patient_id, Patient.practitioner_id == current.id)
     )
     patient = result.scalar_one_or_none()
     if not patient:

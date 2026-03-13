@@ -45,17 +45,10 @@ services:
   # ── Frontend (Next.js) ──────────────────────────────────────────────────
   - type: web
     name: dhanvantari
-    runtime: node
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
     plan: free
-    rootDir: ./frontend
-    buildCommand: npm install && npm run build
-    startCommand: npm start
     envVars:
       - key: NEXT_PUBLIC_API_URL
-        fromService:
-          type: web
-          name: dhanvantari-api
-          property: host
-          # Render fills in the full URL automatically
-      - key: PORT
-        value: "3000"
+        value: https://dhanvantari-api.onrender.com

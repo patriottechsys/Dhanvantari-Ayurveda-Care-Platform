@@ -105,7 +105,13 @@ export const plansApi = {
 export const supplementsApi = {
   list: (params?: { search?: string; category?: string; dosha?: string }) =>
     api.get("/api/supplements", { params }),
-  get: (id: number) => api.get(`/api/supplements/${id}`),
+  get:         (id: number) => api.get(`/api/supplements/${id}`),
+  uploadImage: (id: number, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return api.post(`/api/supplements/${id}/image`, form, { headers: { "Content-Type": "multipart/form-data" } });
+  },
+  deleteImage: (id: number) => api.delete(`/api/supplements/${id}/image`),
 };
 
 export const recipesApi = {

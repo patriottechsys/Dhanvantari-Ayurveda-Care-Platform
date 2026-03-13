@@ -1323,7 +1323,7 @@ async def seed_demo():
 
             # Assign a couple asanas to Shuva's plan
             result = await db.execute(
-                select(ConsultationPlan).where(ConsultationPlan.patient_id == shuva.id, ConsultationPlan.active == True)  # noqa: E712
+                select(ConsultationPlan).where(ConsultationPlan.patient_id == patient.id, ConsultationPlan.active == True)  # noqa: E712
             )
             shuva_plan = result.scalars().first()
             if shuva_plan:

@@ -1,11 +1,14 @@
 """
 Supplements library routes.
 """
-from fastapi import APIRouter, Depends, HTTPException, Query
+import os
+import aiofiles
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, or_
 from pydantic import BaseModel
 
+from app.core.config import settings
 from app.core.database import get_db
 from app.api.deps import get_current_practitioner
 from app.models.practitioner import Practitioner
@@ -54,6 +57,7 @@ def _supp_dict(s: Supplement) -> dict:
         "cautions": s.cautions,
         "contraindications": s.contraindications,
         "notes": s.notes,
+        "image_url": s.image_url,
         "is_classical": s.is_classical,
         "is_community": s.is_community,
     }
@@ -125,3 +129,59 @@ async def update_supplement(
         setattr(s, field, value)
     await db.flush()
     return {"message": "Updated"}
+
+
+@router.post("/{supplement_id}/image")
+async def upload_supplement_image(
+    supplement_id: int,
+    file: UploadFile = File(...),
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Supplement).where(Supplement.id == supplement_id))
+    s = result.scalars().first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    content_type = file.content_type or ""
+    if content_type not in ("image/jpeg", "image/png", "image/webp"):
+        raise HTTPException(status_code=400, detail="Only JPEG, PNG, or WebP images are accepted")
+
+    contents = await file.read()
+    if len(contents) > 2 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 2MB)")
+
+    upload_dir = os.path.join(settings.STORAGE_LOCAL_PATH, "supplements")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = content_type.split("/")[-1]
+    filename = f"supplement_{s.id}.{ext}"
+    filepath = os.path.join(upload_dir, filename)
+
+    async with aiofiles.open(filepath, "wb") as f:
+        await f.write(contents)
+
+    s.image_url = f"/uploads/supplements/{filename}"
+    await db.flush()
+    return {"image_url": s.image_url}
+
+
+@router.delete("/{supplement_id}/image")
+async def delete_supplement_image(
+    supplement_id: int,
+    practitioner: Practitioner = Depends(get_current_practitioner),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Supplement).where(Supplement.id == supplement_id))
+    s = result.scalars().first()
+    if not s:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if s.image_url:
+        filepath = os.path.join(settings.STORAGE_LOCAL_PATH, s.image_url.lstrip("/uploads/"))
+        if os.path.exists(filepath):
+            os.remove(filepath)
+        s.image_url = None
+        await db.flush()
+
+    return {"message": "Image removed"}

@@ -3,6 +3,7 @@ version: "3.9"
 services:
   postgres:
     image: postgres:16-alpine
+    restart: unless-stopped
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -17,31 +18,52 @@ services:
       timeout: 5s
       retries: 5
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
   backend:
     build: ./backend
+    restart: unless-stopped
     ports:
       - "8747:8747"
     environment:
-      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/dhanvantari
-      - DEBUG=true
-    env_file:
-      - .env
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/dhanvantari
+      FRONTEND_URL: http://localhost:3747
+      DEBUG: "true"
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+    volumes:
+      - uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy
-    volumes:
-      - ./backend:/app
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8747 --reload
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8747
+    restart: unless-stopped
+    ports:
+      - "3747:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8747
+    depends_on:
+      - backend
+
+  # Run once to seed demo data: docker compose --profile seed run seed
+  seed:
+    build: ./backend
+    command: python scripts/seed_demo.py
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/dhanvantari
+      SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    profiles:
+      - seed
 
 volumes:
   pgdata:
+  uploads:
