@@ -63,7 +63,7 @@ interface PrintPatientPlanProps {
   onClose: () => void;
 }
 
-const PORTAL_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(":8747", ":3747") ?? "http://localhost:3747";
+const PORTAL_BASE = typeof window !== "undefined" ? window.location.origin : "";
 
 function QRCodeSVG({ value, size = 100 }: { value: string; size?: number }) {
   // Simple QR code placeholder using a Google Charts API URL embedded as image

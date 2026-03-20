@@ -37,7 +37,7 @@ type Assessment = {
   created_at: string;
 };
 
-const PORTAL_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(":8747", ":3747") ?? "http://localhost:3747";
+const PORTAL_BASE = typeof window !== "undefined" ? window.location.origin : "";
 
 export default function PatientDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
