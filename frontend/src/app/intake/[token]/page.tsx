@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
-import { Loader2, CheckCircle2, AlertCircle } from "lucide-react";
+import Link from "next/link";
+import { Loader2, CheckCircle2, AlertCircle, ArrowLeft } from "lucide-react";
 import { intakeApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -180,13 +181,20 @@ export default function IntakeFormPage() {
           <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
             &#x0950;
           </div>
-          <div>
+          <div className="flex-1">
             <h1 className="font-semibold text-sm">{practice?.name || "Dhanvantari"}</h1>
             <p className="text-xs text-muted-foreground">
               {practice?.practitioner_name && `${practice.practitioner_name}`}
               {practice?.designation && `, ${practice.designation}`}
             </p>
           </div>
+          <Link
+            href="/dashboard"
+            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArrowLeft className="size-3.5" />
+            Dashboard
+          </Link>
         </div>
       </div>
 

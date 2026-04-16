@@ -4,8 +4,8 @@ import { useState, useCallback } from "react";
 import { use } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding, Printer, Wind } from "lucide-react";
-import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi, yogaApi, planYogaApi, pranayamaApi, planPranayamaApi } from "@/lib/api/client";
+import { ArrowLeft, Plus, Trash2, ExternalLink, Save, FileText, Sparkles, Send, ChevronLeft, Loader2, TrendingUp, TrendingDown, Minus, Clock, Activity, Calendar, PersonStanding, Printer, Wind, HandHeart } from "lucide-react";
+import { patientsApi, plansApi, checkinsApi, followupsApi, supplementsApi, recipesApi, notesApi, assessmentsApi, aiApi, yogaApi, planYogaApi, pranayamaApi, planPranayamaApi, therapiesApi, planTherapyApi } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -198,6 +198,10 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const [editPranayamaId, setEditPranayamaId] = useState<number | null>(null);
   const [editPranayamaFields, setEditPranayamaFields] = useState<Record<string, string>>({});
 
+  // ── Therapy assignment (backend-powered) ─────────────────────────────
+  const [addTherapyOpen, setAddTherapyOpen] = useState(false);
+  const [therapySearch, setTherapySearch] = useState("");
+
   const { data: yogaLib = [] } = useQuery({
     queryKey: ["yoga-lib", yogaSearch],
     queryFn: () => yogaApi.list({ search: yogaSearch || undefined }).then((r) => r.data),
@@ -219,6 +223,18 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
   const { data: assignedPranayamaRaw = [] } = useQuery({
     queryKey: ["plan-pranayama", plan?.id],
     queryFn: () => planPranayamaApi.list(plan.id).then((r) => r.data),
+    enabled: !!plan?.id && (tab === "plan" || tab === "overview"),
+  });
+
+  const { data: therapyLib = [] } = useQuery({
+    queryKey: ["therapy-lib", therapySearch],
+    queryFn: () => therapiesApi.list({ search: therapySearch || undefined }).then((r) => r.data),
+    enabled: addTherapyOpen,
+  });
+
+  const { data: assignedTherapiesRaw = [] } = useQuery({
+    queryKey: ["plan-therapies", plan?.id],
+    queryFn: () => planTherapyApi.list(plan.id).then((r) => r.data),
     enabled: !!plan?.id && (tab === "plan" || tab === "overview"),
   });
 
@@ -336,6 +352,25 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-pranayama", plan?.id] }),
   });
 
+  const addTherapyMutation = useMutation({
+    mutationFn: (therapyId: number) =>
+      planTherapyApi.assign(plan.id, { therapy_id: therapyId }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["plan-therapies", plan?.id] });
+      setAddTherapyOpen(false);
+    },
+  });
+
+  const removeTherapyMutation = useMutation({
+    mutationFn: (assignmentId: number) => planTherapyApi.remove(plan.id, assignmentId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-therapies", plan?.id] }),
+  });
+
+  const reorderTherapyMutation = useMutation({
+    mutationFn: (ids: number[]) => planTherapyApi.reorder(plan.id, ids),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["plan-therapies", plan?.id] }),
+  });
+
   // ── Assignment item mappers ─────────────────────────────────────────────
   const yogaItems: AssignmentItem[] = assignedYogaRaw.map((y: { id: number; asana_id: number; frequency?: string | null; duration?: string | null; practice_time?: string | null; notes?: string | null; asana?: { name: string; name_sanskrit?: string | null; level?: string | null; hold_duration?: string | null } | null }) => ({
     id: y.id,
@@ -353,6 +388,15 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
     badges: [p.pranayama?.difficulty, p.pranayama?.category].filter(Boolean) as string[],
     meta: [p.frequency, p.duration, p.rounds, p.practice_time].filter(Boolean).join(" · "),
     notes: p.notes,
+  }));
+
+  const therapyItems: AssignmentItem[] = assignedTherapiesRaw.map((t: { id: number; therapy_id: number; frequency?: string | null; duration_minutes?: number | null; price_cents?: number | null; notes?: string | null; therapy?: { name: string; name_sanskrit?: string | null; category?: string | null; default_duration_minutes?: number | null; default_price_cents?: number | null } | null }) => ({
+    id: t.id,
+    title: t.therapy?.name ?? `Therapy #${t.therapy_id}`,
+    subtitle: t.therapy?.name_sanskrit,
+    badges: [t.therapy?.category].filter(Boolean) as string[],
+    meta: [t.frequency, t.duration_minutes ? `${t.duration_minutes}min` : t.therapy?.default_duration_minutes ? `${t.therapy.default_duration_minutes}min` : null, t.price_cents ? `$${(t.price_cents / 100).toFixed(0)}` : t.therapy?.default_price_cents ? `$${(t.therapy.default_price_cents / 100).toFixed(0)}` : null].filter(Boolean).join(" · "),
+    notes: t.notes,
   }));
 
   const handleEditYoga = useCallback((assignmentId: number) => {
@@ -1092,6 +1136,27 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
                     onRemove={(id) => removePranayamaMutation.mutate(id)}
                   />
                 </div>
+
+                {/* Therapies */}
+                <div className="rounded-xl border bg-card p-5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-medium text-sm flex items-center gap-1.5">
+                      <HandHeart className="size-4" />
+                      Therapies ({assignedTherapiesRaw.length})
+                    </h3>
+                    <Button size="sm" variant="outline" onClick={() => setAddTherapyOpen(true)} className="gap-1.5">
+                      <Plus className="size-3.5" /> Add
+                    </Button>
+                  </div>
+                  {assignedTherapiesRaw.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No therapies assigned yet.</p>
+                  )}
+                  <SortableAssignmentList
+                    items={therapyItems}
+                    onReorder={(ids) => reorderTherapyMutation.mutate(ids)}
+                    onRemove={(id) => removeTherapyMutation.mutate(id)}
+                  />
+                </div>
               </>
             )}
           </div>
@@ -1606,6 +1671,44 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
             </Button>
           </div>
         </form>
+      </Dialog>
+
+      {/* Add Therapy */}
+      <Dialog
+        open={addTherapyOpen}
+        onClose={() => setAddTherapyOpen(false)}
+        title="Add Therapy Service"
+        className="max-w-lg"
+      >
+        <div className="space-y-3">
+          <Input placeholder="Search therapies…" value={therapySearch} onChange={(e) => setTherapySearch(e.target.value)} />
+          <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
+            {therapyLib
+              .filter((t: { id: number }) => !assignedTherapiesRaw.some((a: { therapy_id: number }) => a.therapy_id === t.id))
+              .map((t: { id: number; name: string; name_sanskrit?: string | null; category?: string | null; default_duration_minutes?: number | null; default_price_cents?: number | null; dosha_effect?: string | null }) => (
+                <button
+                  key={t.id}
+                  onClick={() => addTherapyMutation.mutate(t.id)}
+                  disabled={addTherapyMutation.isPending}
+                  className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {t.default_duration_minutes && <span>{t.default_duration_minutes}min</span>}
+                      {t.default_price_cents && <span className="font-medium text-primary">${(t.default_price_cents / 100).toFixed(0)}</span>}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {[t.name_sanskrit, t.category, t.dosha_effect].filter(Boolean).join(" · ")}
+                  </p>
+                </button>
+              ))}
+            {therapyLib.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No therapies found.</p>
+            )}
+          </div>
+        </div>
       </Dialog>
 
       {/* Print / Export View */}
