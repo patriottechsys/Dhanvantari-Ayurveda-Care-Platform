@@ -1673,6 +1673,44 @@ export default function PatientDetailPage({ params }: { params: Promise<{ id: st
         </form>
       </Dialog>
 
+      {/* Add Therapy */}
+      <Dialog
+        open={addTherapyOpen}
+        onClose={() => setAddTherapyOpen(false)}
+        title="Add Therapy Service"
+        className="max-w-lg"
+      >
+        <div className="space-y-3">
+          <Input placeholder="Search therapies…" value={therapySearch} onChange={(e) => setTherapySearch(e.target.value)} />
+          <div className="max-h-72 overflow-y-auto space-y-1.5 -mx-1 px-1">
+            {therapyLib
+              .filter((t: { id: number }) => !assignedTherapiesRaw.some((a: { therapy_id: number }) => a.therapy_id === t.id))
+              .map((t: { id: number; name: string; name_sanskrit?: string | null; category?: string | null; default_duration_minutes?: number | null; default_price_cents?: number | null; dosha_effect?: string | null }) => (
+                <button
+                  key={t.id}
+                  onClick={() => addTherapyMutation.mutate(t.id)}
+                  disabled={addTherapyMutation.isPending}
+                  className="w-full text-left rounded-lg border px-3 py-2.5 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium">{t.name}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {t.default_duration_minutes && <span>{t.default_duration_minutes}min</span>}
+                      {t.default_price_cents && <span className="font-medium text-primary">${(t.default_price_cents / 100).toFixed(0)}</span>}
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {[t.name_sanskrit, t.category, t.dosha_effect].filter(Boolean).join(" · ")}
+                  </p>
+                </button>
+              ))}
+            {therapyLib.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">No therapies found.</p>
+            )}
+          </div>
+        </div>
+      </Dialog>
+
       {/* Print / Export View */}
       {showPrint && plan && (
         <div className="fixed inset-0 z-50 bg-white overflow-y-auto print-container">
