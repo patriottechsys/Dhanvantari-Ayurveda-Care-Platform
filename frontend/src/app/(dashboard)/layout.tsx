@@ -12,6 +12,7 @@ import {
   Wind,
   PersonStanding,
   HandHeart,
+  ClipboardList,
   Sparkles,
   Settings,
   LogOut,
@@ -31,6 +32,7 @@ const NAV = [
   { href: "/recipes",     label: "Recipes",      icon: UtensilsCrossed },
   { href: "/pranayama",   label: "Pranayama",    icon: Wind },
   { href: "/yoga",        label: "Yoga",         icon: PersonStanding },
+  { href: "/intake",       label: "Intake Forms", icon: ClipboardList },
   { href: "/ai-assistant", label: "AI Assistant", icon: Sparkles },
   { href: "/settings",    label: "Settings",     icon: Settings },
 ];
