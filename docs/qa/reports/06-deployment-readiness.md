@@ -270,7 +270,7 @@ async def lifespan(app: FastAPI):
 | `REFRESH_TOKEN_EXPIRE_DAYS` | `30` | Not set | OK | |
 | `EMAIL_FROM` | `noreply@dhanvantari.app` | Not set | OK | Default is correct |
 | `EMAIL_FROM_NAME` | `Dhanvantari Care` | Not set | OK | Default is correct |
-| `AI_MODEL` | `claude-sonnet-4-6` | Not set | OK | Default is correct |
+| `AI_MODEL` | `claude-sonnet-5-5` | Not set | OK | Default is correct |
 | `STORAGE_BACKEND` | `"local"` | Not set | WARN | See ephemeral storage issue |
 | `STORAGE_LOCAL_PATH` | `"./uploads"` | Not set | WARN | Ephemeral on Render |
 | `AWS_BUCKET` | `""` | Not set | N/A | Not used until S3 switch |

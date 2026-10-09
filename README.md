@@ -25,7 +25,7 @@ AI-powered Ayurvedic practice management platform for practitioners. Manage pati
 | Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4, React Query, Recharts |
 | Backend | FastAPI, SQLAlchemy 2 (async), Alembic, Pydantic 2 |
 | Database | PostgreSQL 16 |
-| AI | Anthropic Claude (claude-sonnet-4-6) |
+| AI | Anthropic Claude (claude-sonnet-5-5) |
 | Email | Resend |
 | Payments | Stripe |
 | Auth | JWT (access + refresh tokens) |
@@ -55,7 +55,7 @@ pip install -r requirements.txt
 # Create .env from the example in config.py, minimum needed:
 # DATABASE_URL=postgresql+asyncpg://postgres:postgres@localhost:5432/dhanvantari
 # SECRET_KEY=your-secret-key
-# ANTHROPIC_API_KEY=sk-ant-...  (optional, for AI features)
+# ANTHROPIC_API_KEY=<shared key, see "LLM API key" below>  (optional, for AI features)
 
 alembic upgrade head
 python scripts/seed_demo.py
@@ -169,12 +169,23 @@ Full API docs available at `/api/docs` when `DEBUG=true`.
 |----------|----------|-------------|
 | `DATABASE_URL` | Yes | PostgreSQL connection string (asyncpg) |
 | `SECRET_KEY` | Yes | JWT signing key |
-| `ANTHROPIC_API_KEY` | No | Claude API key for AI features |
+| `ANTHROPIC_API_KEY` | No | Claude API key for AI features (shared key, see [LLM API key](#llm-api-key)) |
+| `AI_MODEL` | No | Claude model id (default: `claude-sonnet-5-5`) |
 | `STRIPE_SECRET_KEY` | No | Stripe secret for billing |
 | `STRIPE_WEBHOOK_SECRET` | No | Stripe webhook verification |
 | `RESEND_API_KEY` | No | Resend API key for email |
 | `FRONTEND_URL` | No | Frontend URL for CORS (default: http://localhost:3747) |
 | `NEXT_PUBLIC_API_URL` | No | Backend URL for frontend (default: http://localhost:8747) |
+
+## LLM API key
+
+The Anthropic API key is the shared secret `Demo-Apps-Share-API-Key` in Azure Key Vault `kv-demo-apps-shared` (subscription "Demo Apps"). AI features are optional; without the key the AI endpoints return 503. Fetch it with:
+
+```bash
+az keyvault secret show --vault-name kv-demo-apps-shared --name Demo-Apps-Share-API-Key --subscription "Demo Apps" --query value -o tsv
+```
+
+Set the result as `ANTHROPIC_API_KEY` in your `.env` (local), the `docker-compose` environment, or the Render dashboard. The model is `claude-sonnet-5-5`.
 
 ## License
 

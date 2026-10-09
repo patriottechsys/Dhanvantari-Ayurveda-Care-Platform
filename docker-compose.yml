@@ -28,6 +28,7 @@ services:
       FRONTEND_URL: http://localhost:3747
       DEBUG: "true"
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key-change-in-production}
+      # Shared key: Azure Key Vault kv-demo-apps-shared, secret Demo-Apps-Share-API-Key
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}

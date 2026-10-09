@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # ── AI ───────────────────────────────────────────────────────────────────
     ANTHROPIC_API_KEY: str = ""
-    AI_MODEL: str = "claude-sonnet-4-6"
+    AI_MODEL: str = "claude-sonnet-5-5"
 
     # ── File Storage (future: S3/R2) ─────────────────────────────────────────
     STORAGE_BACKEND: str = "local"  # "local" | "s3"
